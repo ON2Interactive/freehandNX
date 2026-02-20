@@ -6,15 +6,7 @@
       "use": "@vercel/node"
     },
     {
-      "src": "index.html",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "editor.html",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "preview.html",
+      "src": "*.html",
       "use": "@vercel/static"
     },
     {
@@ -23,6 +15,10 @@
     },
     {
       "src": "editor.css",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "styles.css",
       "use": "@vercel/static"
     },
     {
@@ -64,7 +60,19 @@
       "dest": "/preview.html"
     },
     {
-      "src": "/(editor\\.js|editor\\.css|editor\\.html|preview\\.html|favicon\\.ico|.*\\.(png|jpg|jpeg|svg|webp|gif))",
+      "src": "/signup",
+      "dest": "/signup.html"
+    },
+    {
+      "src": "/auth-callback",
+      "dest": "/auth-callback.html"
+    },
+    {
+      "src": "/(pricing|faqs|help|contact|terms|privacy)",
+      "dest": "/$1.html"
+    },
+    {
+      "src": "/(editor\\.js|editor\\.css|styles\\.css|editor\\.html|preview\\.html|signup\\.html|auth-callback\\.html|favicon\\.ico|.*\\.(png|jpg|jpeg|svg|webp|gif))",
       "dest": "/$1"
     },
     {
