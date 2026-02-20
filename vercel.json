@@ -28,6 +28,10 @@
     {
       "src": "assets/**",
       "use": "@vercel/static"
+    },
+    {
+      "src": "Logo/**",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
