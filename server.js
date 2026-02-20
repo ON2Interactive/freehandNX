@@ -195,7 +195,7 @@ function getSupabaseServiceHeaders() {
 
 async function getAuthenticatedSupabaseUser(req) {
   const token = getBearerToken(req);
-  if (!token) return { ok: false, status: 401, error: "Missing bearer token." };
+  if (!token) return { ok: false, status: 401, error: "Sign in required." };
   const claims = decodeJwtPayload(token);
   const userId = String(claims?.sub || "").trim();
   if (!isLikelyUuid(userId)) return { ok: false, status: 401, error: "Invalid auth token." };
