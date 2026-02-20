@@ -45,6 +45,9 @@ const SHARE_MAX_ITEMS = 300;
 const SUPABASE_URL = cleanEnvValue(process.env.SUPABASE_URL || "");
 const SUPABASE_SERVICE_ROLE_KEY = cleanEnvValue(process.env.SUPABASE_SERVICE_ROLE_KEY || "");
 const SUPABASE_STORAGE_BUCKET = cleanEnvValue(process.env.SUPABASE_STORAGE_BUCKET || "freehandnx-assets");
+const DEV_GUEST_MODE = /^(1|true|yes)$/i.test(cleanEnvValue(process.env.DEV_GUEST_MODE || ""));
+const DEV_GUEST_EMAIL = cleanEnvValue(process.env.DEV_GUEST_EMAIL || "guest@freehandnx.local").toLowerCase();
+const DEV_GUEST_PASSWORD = cleanEnvValue(process.env.DEV_GUEST_PASSWORD || "FreehandNX-Guest-Only-Temp-123!");
 const PROJECT_SESSIONS_BUCKET = "project-sessions";
 const PUBLIC_APP_ORIGIN = cleanEnvValue(
   process.env.FREEHANDNX_PUBLIC_ORIGIN || process.env.PUBLIC_APP_ORIGIN || process.env.NEXT_PUBLIC_SITE_URL || ""
@@ -193,18 +196,151 @@ function getSupabaseServiceHeaders() {
   };
 }
 
+function normalizeProfileUsername(email = "") {
+  const base = String(email || "")
+    .toLowerCase()
+    .split("@")[0]
+    .replace(/[^a-z0-9._-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return (base || "freehandnx_user").slice(0, 32);
+}
+
+async function ensureSupabaseProfileRecord(user) {
+  const userId = String(user?.id || "").trim();
+  const email = normalizeEmail(user?.email || "");
+  if (!isLikelyUuid(userId) || !email) {
+    return { ok: false, status: 400, error: "Invalid user profile payload." };
+  }
+  const service = getSupabaseServiceHeaders();
+  if (!service.ok) return { ok: false, status: 500, error: service.error };
+  const { config, headers } = service;
+  const response = await fetch(`${config.url}/rest/v1/profiles`, {
+    method: "POST",
+    headers: {
+      ...headers,
+      Prefer: "resolution=merge-duplicates,return=minimal",
+    },
+    body: JSON.stringify([
+      {
+        id: userId,
+        email,
+        username: normalizeProfileUsername(email),
+        last_sign_in_at: new Date().toISOString(),
+      },
+    ]),
+  });
+  if (response.ok) return { ok: true };
+  const reason = await response.text().catch(() => "");
+  return {
+    ok: false,
+    status: 502,
+    error: `Unable to ensure profile record.${reason ? ` ${reason}` : ""}`,
+  };
+}
+
+let devGuestUserCache = null;
+let devGuestUserPromise = null;
+
+async function lookupSupabaseAuthUserByEmail(service, email) {
+  const { config, headers } = service;
+  const response = await fetch(
+    `${config.url}/auth/v1/admin/users?email=${encodeURIComponent(email)}&page=1&per_page=50`,
+    {
+      method: "GET",
+      headers,
+    }
+  );
+  if (!response.ok) return null;
+  const payload = await response.json().catch(() => ({}));
+  const users = Array.isArray(payload?.users) ? payload.users : [];
+  const found = users.find((entry) => normalizeEmail(entry?.email) === normalizeEmail(email));
+  if (!found) return null;
+  return {
+    id: String(found?.id || "").trim(),
+    email: normalizeEmail(found?.email || email),
+  };
+}
+
+async function ensureDevGuestSupabaseUser() {
+  if (devGuestUserCache?.id && devGuestUserCache?.email) {
+    return { ok: true, user: devGuestUserCache };
+  }
+  if (devGuestUserPromise) return devGuestUserPromise;
+  devGuestUserPromise = (async () => {
+    const service = getSupabaseServiceHeaders();
+    if (!service.ok) return { ok: false, status: 500, error: service.error };
+    const existing = await lookupSupabaseAuthUserByEmail(service, DEV_GUEST_EMAIL);
+    let guestUser = existing;
+    if (!guestUser) {
+      const { config, headers } = service;
+      const createResponse = await fetch(`${config.url}/auth/v1/admin/users`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          email: DEV_GUEST_EMAIL,
+          password: DEV_GUEST_PASSWORD,
+          email_confirm: true,
+          user_metadata: {
+            full_name: "FreehandNX Guest",
+          },
+        }),
+      });
+      if (createResponse.ok) {
+        const created = await createResponse.json().catch(() => ({}));
+        guestUser = {
+          id: String(created?.id || created?.user?.id || "").trim(),
+          email: normalizeEmail(created?.email || created?.user?.email || DEV_GUEST_EMAIL),
+        };
+      } else {
+        const fallback = await lookupSupabaseAuthUserByEmail(service, DEV_GUEST_EMAIL);
+        if (!fallback) {
+          const reason = await createResponse.text().catch(() => "");
+          return { ok: false, status: 502, error: `Unable to provision guest user.${reason ? ` ${reason}` : ""}` };
+        }
+        guestUser = fallback;
+      }
+    }
+    if (!isLikelyUuid(guestUser?.id)) {
+      return { ok: false, status: 500, error: "Guest user id is invalid." };
+    }
+    const profileReady = await ensureSupabaseProfileRecord(guestUser);
+    if (!profileReady.ok) return profileReady;
+    devGuestUserCache = guestUser;
+    return { ok: true, user: guestUser };
+  })();
+  try {
+    return await devGuestUserPromise;
+  } finally {
+    devGuestUserPromise = null;
+  }
+}
+
 async function getAuthenticatedSupabaseUser(req) {
   const token = getBearerToken(req);
-  if (!token) return { ok: false, status: 401, error: "Sign in required." };
+  if (!token) {
+    if (DEV_GUEST_MODE) {
+      const guest = await ensureDevGuestSupabaseUser();
+      if (!guest.ok) return guest;
+      return {
+        ok: true,
+        user: guest.user,
+        isDevGuest: true,
+      };
+    }
+    return { ok: false, status: 401, error: "Sign in required." };
+  }
   const claims = decodeJwtPayload(token);
   const userId = String(claims?.sub || "").trim();
   if (!isLikelyUuid(userId)) return { ok: false, status: 401, error: "Invalid auth token." };
+  const user = {
+    id: userId,
+    email: String(claims?.email || "").trim().toLowerCase(),
+  };
+  const profileReady = await ensureSupabaseProfileRecord(user);
+  if (!profileReady.ok) return profileReady;
   return {
     ok: true,
-    user: {
-      id: userId,
-      email: String(claims?.email || "").trim().toLowerCase(),
-    },
+    user,
   };
 }
 
