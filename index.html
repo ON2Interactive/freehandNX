@@ -56,6 +56,8 @@
         max-width: 1200px;
         padding: 0 20px;
         margin: 0 auto;
+        position: relative;
+        z-index: 1;
       }
       .hero-copy {
         max-width: 1060px;
@@ -82,6 +84,15 @@
         min-height: 800px;
         display: flex;
         align-items: center;
+        position: relative;
+        background: #0f0f0f url("/assets/Hero-Dark.png") center center / cover no-repeat;
+      }
+      .hero::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, rgba(6, 6, 8, 0.72) 0%, rgba(6, 6, 8, 0.56) 40%, rgba(6, 6, 8, 0.66) 100%);
+        pointer-events: none;
       }
       .section-blank {
         min-height: 600px;
@@ -100,6 +111,97 @@
         display: block;
         width: 100%;
         height: auto;
+      }
+      .landing-features {
+        background: linear-gradient(180deg, #0d0d0d 0%, #070707 100%);
+        min-height: 800px;
+        padding: 100px 20px 160px;
+      }
+      .landing-features-inner {
+        width: min(1400px, 100%);
+        margin: 0 auto;
+      }
+      .landing-features-copy {
+        width: min(980px, 100%);
+        margin: 0 auto 60px;
+        padding: 0 12px;
+        text-align: center;
+      }
+      .landing-features-copy h1 {
+        margin: 0;
+        font-size: 42px;
+        line-height: 1.04;
+        color: #f2f2f2;
+        background: none;
+        -webkit-background-clip: initial;
+        background-clip: initial;
+        text-align: center;
+      }
+      .landing-features-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 20px;
+      }
+      .landing-feature-card {
+        min-height: 220px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 26px 24px;
+      }
+      .landing-feature-card h3 {
+        margin: 0 0 12px;
+        font-size: 1.45rem;
+        color: #f2f2f2;
+      }
+      .landing-feature-title-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+      }
+      .landing-feature-title-row h3 {
+        margin: 0;
+      }
+      .landing-feature-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: #2f72ff;
+        color: #eaf2ff;
+        font-size: 0.72rem;
+        line-height: 1;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+      }
+      .landing-feature-card p {
+        margin: 0;
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 1rem;
+        line-height: 1.55;
+        text-align: left;
+      }
+      .landing-features-footer {
+        width: min(980px, 100%);
+        margin: 60px auto 0;
+        padding: 0 12px;
+        text-align: center;
+      }
+      .landing-features-footer h2 {
+        margin: 0 0 14px;
+        font-size: 40px;
+        line-height: 1.06;
+        color: #f2f2f2;
+      }
+      .landing-features-footer p {
+        margin: 0 auto;
+        max-width: 860px;
+        color: rgba(255, 255, 255, 0.82);
+        font-size: 1rem;
+        line-height: 1.55;
       }
       .landing-footer {
         background-color: #131313;
@@ -251,6 +353,39 @@
         h2 {
           font-size: 22px;
         }
+        .landing-features {
+          padding: 34px 14px 112px;
+        }
+        .landing-features-copy {
+          margin-bottom: 24px;
+          padding: 0 8px;
+        }
+        .landing-features-copy h1 {
+          font-size: 30px;
+        }
+        .landing-features-grid {
+          grid-template-columns: 1fr;
+          gap: 14px;
+        }
+        .landing-feature-card {
+          min-height: 0;
+          padding: 20px 18px;
+        }
+        .landing-features-footer {
+          margin-top: 34px;
+          padding: 0 8px;
+        }
+        .landing-features-footer h2 {
+          font-size: 30px;
+        }
+      }
+      @media (min-width: 781px) and (max-width: 1120px) {
+        .landing-features {
+          padding-bottom: 132px;
+        }
+        .landing-features-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
       }
       @media (max-width: 480px) {
         h1 {
@@ -280,6 +415,59 @@
       <section class="section-blank">
         <div class="section-blank-inner">
           <img src="assets/Screenshots/LP-App_Image.png" alt="FreehandNX app preview" />
+        </div>
+      </section>
+      <section class="landing-features" aria-label="FreehandNX features">
+        <div class="landing-features-inner">
+          <div class="landing-features-copy">
+            <h1>In the Box</h1>
+          </div>
+          <div class="landing-features-grid">
+            <article class="landing-feature-card">
+              <h3>Multi-Page Canvas</h3>
+              <p>Design complete multi-page publications in a clean canvas workflow with drag, resize, layer control, and snap-aware placement.</p>
+            </article>
+            <article class="landing-feature-card">
+              <h3>Grid System</h3>
+              <p>Use preset layout grids and custom grids with adjustable columns, gutter, and margins for precise editorial structure.</p>
+            </article>
+            <article class="landing-feature-card">
+              <h3>Open Type</h3>
+              <p>Add and style text with OpenType controls, alignment, tracking, spacing, gradients, and image fills for editorial-quality compositions.</p>
+            </article>
+            <article class="landing-feature-card">
+              <h3>Shapes and Icons</h3>
+              <p>Build structured layouts fast with vector shapes, icon tools, grouping, locking, and layer ordering across each page.</p>
+            </article>
+            <article class="landing-feature-card">
+              <h3>AI Image Generate + Edit</h3>
+              <p>Generate new visuals from prompts and run AI edits directly on selected canvas images, with version history controls built in.</p>
+            </article>
+            <article class="landing-feature-card">
+              <h3>Film Looks</h3>
+              <p>Apply curated film-inspired looks with adjustable strength to shape image mood and tone directly inside your layout workflow.</p>
+            </article>
+            <article class="landing-feature-card">
+              <h3>Project Sessions</h3>
+              <p>Create, save, reopen, and organize cloud-backed project sessions so each publication stays cleanly separated and easy to manage.</p>
+            </article>
+            <article class="landing-feature-card">
+              <h3>Export and Share</h3>
+              <p>Export to multiple outputs, generate share links, and publish responsive previews for desktop, tablet, and mobile viewing.</p>
+            </article>
+            <article class="landing-feature-card">
+              <h3>Flip Page Preview</h3>
+              <p>Review layouts with a realistic page-turn preview to validate pacing, visual flow, and storytelling before final export.</p>
+            </article>
+            <article class="landing-feature-card">
+              <h3>Order Workflow</h3>
+              <p>Order action is already integrated in the topbar and can be connected to your preferred print or fulfillment service in the next phase.</p>
+            </article>
+          </div>
+          <div class="landing-features-footer">
+            <h2>Simple. No Bloat. No Downloads.</h2>
+            <p>FreehandNX gives creators exactly the tools they need to ship professional layouts, without unnecessary distractions.</p>
+          </div>
         </div>
       </section>
       <footer class="landing-footer" aria-label="FreehandNX footer">

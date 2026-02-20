@@ -220,6 +220,10 @@ const propImageBlur = document.getElementById("propImageBlur");
 const propImageGrayscale = document.getElementById("propImageGrayscale");
 const propImageSepia = document.getElementById("propImageSepia");
 const propImageHue = document.getElementById("propImageHue");
+const propImageFilmLook = document.getElementById("propImageFilmLook");
+const propImageFilmLookStrength = document.getElementById("propImageFilmLookStrength");
+const propImageFilmLookStrengthNumber = document.getElementById("propImageFilmLookStrengthNumber");
+const propImageFilmLookResetBtn = document.getElementById("propImageFilmLookResetBtn");
 const propImageAiEditBtn = document.getElementById("propImageAiEditBtn");
 const propImageDownloadBtn = document.getElementById("propImageDownloadBtn");
 const propImageVersionPrevBtn = document.getElementById("propImageVersionPrevBtn");
@@ -335,6 +339,71 @@ const CANVAS_MAX_HEIGHT_PX = 12000;
 const MIN_CANVAS_ZOOM = 0.05;
 const MAX_CANVAS_ZOOM = 4;
 const CANVAS_FIT_PADDING = 32;
+const FILM_LOOK_PROFILES = [
+  { id: "none", name: "None", brightness: 100, contrast: 100, saturation: 100, sepia: 0, hueRotate: 0, warm: 0, cool: 0, tint: 0 },
+  { id: "kodachrome-64", name: "Kodachrome 64", brightness: 103, contrast: 118, saturation: 92, sepia: 14, hueRotate: -3, warm: 11, cool: 0, tint: 2 },
+  { id: "kodachrome-25", name: "Kodachrome 25", brightness: 101, contrast: 122, saturation: 90, sepia: 18, hueRotate: -4, warm: 13, cool: 0, tint: 3 },
+  { id: "ektachrome-e100", name: "Ektachrome E100", brightness: 102, contrast: 112, saturation: 108, sepia: 4, hueRotate: -2, warm: 4, cool: 0, tint: 1 },
+  { id: "astia-100f", name: "Fujichrome Astia 100F", brightness: 102, contrast: 104, saturation: 106, sepia: 2, hueRotate: 1, warm: 2, cool: 0, tint: -1 },
+  { id: "velvia-50", name: "Fujichrome Velvia 50", brightness: 100, contrast: 120, saturation: 132, sepia: 2, hueRotate: -4, warm: 3, cool: 0, tint: -1 },
+  { id: "provia-100f", name: "Fujichrome Provia 100F", brightness: 101, contrast: 110, saturation: 112, sepia: 1, hueRotate: -1, warm: 2, cool: 0, tint: 0 },
+  { id: "portra-160", name: "Kodak Portra 160", brightness: 106, contrast: 96, saturation: 94, sepia: 7, hueRotate: 2, warm: 8, cool: 0, tint: 1 },
+  { id: "portra-400", name: "Kodak Portra 400", brightness: 107, contrast: 102, saturation: 98, sepia: 8, hueRotate: 2, warm: 9, cool: 0, tint: 1 },
+  { id: "gold-200", name: "Kodak Gold 200", brightness: 105, contrast: 108, saturation: 106, sepia: 10, hueRotate: -2, warm: 10, cool: 0, tint: 1 },
+  { id: "ektar-100", name: "Kodak Ektar 100", brightness: 101, contrast: 114, saturation: 126, sepia: 3, hueRotate: -5, warm: 2, cool: 0, tint: -1 },
+  { id: "ultramax-400", name: "Kodak UltraMax 400", brightness: 104, contrast: 106, saturation: 110, sepia: 6, hueRotate: -1, warm: 7, cool: 0, tint: 1 },
+  { id: "superia-400", name: "Fuji Superia 400", brightness: 102, contrast: 108, saturation: 116, sepia: 2, hueRotate: 3, warm: 1, cool: 2, tint: -1 },
+  { id: "natura-1600", name: "Fuji Natura 1600", brightness: 105, contrast: 101, saturation: 102, sepia: 3, hueRotate: 1, warm: 2, cool: 2, tint: -1 },
+  { id: "cinestill-800t", name: "CineStill 800T", brightness: 103, contrast: 110, saturation: 105, sepia: 1, hueRotate: 6, warm: 0, cool: 8, tint: -2 },
+  { id: "agfa-vista-200", name: "Agfa Vista 200", brightness: 103, contrast: 104, saturation: 108, sepia: 5, hueRotate: 1, warm: 5, cool: 0, tint: 0 },
+  { id: "orwo-nc500", name: "ORWO NC500", brightness: 100, contrast: 116, saturation: 88, sepia: 6, hueRotate: -3, warm: 4, cool: 0, tint: 0 },
+  { id: "ilford-hp5", name: "Ilford HP5 Mono", brightness: 101, contrast: 124, saturation: 0, sepia: 0, hueRotate: 0, warm: 0, cool: 0, tint: 0 },
+  { id: "bw-neutral", name: "B&W Neutral", brightness: 102, contrast: 112, saturation: 0, sepia: 0, hueRotate: 0, warm: 0, cool: 0, tint: 0 },
+  { id: "bw-hard-contrast", name: "B&W Hard Contrast", brightness: 100, contrast: 138, saturation: 0, sepia: 0, hueRotate: 0, warm: 0, cool: 0, tint: 0 },
+  { id: "bw-soft-matte", name: "B&W Soft Matte", brightness: 106, contrast: 92, saturation: 0, sepia: 0, hueRotate: 0, warm: 0, cool: 0, tint: 0 },
+  { id: "bw-silver-rich", name: "B&W Silver Rich", brightness: 101, contrast: 128, saturation: 0, sepia: 0, hueRotate: 0, warm: 0, cool: 0, tint: 0 },
+  { id: "bw-cool-graphite", name: "B&W Cool Graphite", brightness: 102, contrast: 118, saturation: 0, sepia: 0, hueRotate: 0, warm: 0, cool: 8, tint: -2 },
+  { id: "bw-warm-fiber", name: "B&W Warm Fiber", brightness: 103, contrast: 116, saturation: 0, sepia: 7, hueRotate: 0, warm: 8, cool: 0, tint: 1 },
+  { id: "bw-noir", name: "B&W Noir", brightness: 98, contrast: 145, saturation: 0, sepia: 0, hueRotate: 0, warm: 0, cool: 0, tint: 0 },
+  { id: "bw-faded-print", name: "B&W Faded Print", brightness: 108, contrast: 88, saturation: 0, sepia: 4, hueRotate: 0, warm: 4, cool: 0, tint: 0 },
+  { id: "bw-documentary", name: "B&W Documentary", brightness: 100, contrast: 122, saturation: 0, sepia: 0, hueRotate: 0, warm: 1, cool: 0, tint: 0 },
+  { id: "bw-platinum", name: "B&W Platinum", brightness: 104, contrast: 102, saturation: 0, sepia: 5, hueRotate: 0, warm: 5, cool: 0, tint: 0 },
+];
+
+function isBwFilmLook(profile) {
+  return String(profile?.id || "").startsWith("bw-") || String(profile?.id || "") === "ilford-hp5";
+}
+
+function getFilmLookProfile(lookId) {
+  return FILM_LOOK_PROFILES.find((profile) => profile.id === lookId) || FILM_LOOK_PROFILES[0];
+}
+
+function normalizeFilmLookId(value) {
+  const raw = String(value || "").trim();
+  return FILM_LOOK_PROFILES.some((profile) => profile.id === raw) ? raw : "none";
+}
+
+function normalizeFilmLookStrength(value) {
+  return clamp(Number(value) || 100, 0, 100);
+}
+
+function populateFilmLookOptions() {
+  if (!propImageFilmLook) return;
+  propImageFilmLook.innerHTML = "";
+  const colorGroup = document.createElement("optgroup");
+  colorGroup.label = "Color";
+  const bwGroup = document.createElement("optgroup");
+  bwGroup.label = "B&W";
+  FILM_LOOK_PROFILES.forEach((profile) => {
+    const option = document.createElement("option");
+    option.value = profile.id;
+    option.textContent = profile.name;
+    if (isBwFilmLook(profile)) bwGroup.appendChild(option);
+    else colorGroup.appendChild(option);
+  });
+  propImageFilmLook.appendChild(colorGroup);
+  propImageFilmLook.appendChild(bwGroup);
+}
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
@@ -678,6 +747,10 @@ function normalizeImageFilterValue(value, type) {
   return clamp(Number.isFinite(numeric) ? numeric : 100, 0, 200);
 }
 
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
 function buildImageFilterCss(item) {
   const brightness = normalizeImageFilterValue(item.imageBrightness ?? 100, "percent");
   const contrast = normalizeImageFilterValue(item.imageContrast ?? 100, "percent");
@@ -686,7 +759,7 @@ function buildImageFilterCss(item) {
   const grayscale = clamp(Number(item.imageGrayscale ?? 0), 0, 100);
   const sepia = clamp(Number(item.imageSepia ?? 0), 0, 100);
   const hue = normalizeImageFilterValue(item.imageHue ?? 0, "hue");
-  return [
+  const base = [
     `brightness(${brightness}%)`,
     `contrast(${contrast}%)`,
     `saturate(${saturation}%)`,
@@ -694,7 +767,24 @@ function buildImageFilterCss(item) {
     `grayscale(${grayscale}%)`,
     `sepia(${sepia}%)`,
     `hue-rotate(${hue}deg)`,
-  ].join(" ");
+  ];
+  const profile = getFilmLookProfile(normalizeFilmLookId(item.imageFilmLookId ?? "none"));
+  if (profile.id !== "none") {
+    const t = normalizeFilmLookStrength(item.imageFilmLookStrength ?? 100) / 100;
+    const lookBrightness = lerp(100, profile.brightness, t);
+    const lookContrast = lerp(100, profile.contrast, t);
+    const lookSaturation = lerp(100, profile.saturation, t);
+    const lookSepia = lerp(0, profile.sepia, t);
+    const lookHueRotate = lerp(0, profile.hueRotate, t);
+    base.push(
+      `brightness(${lookBrightness}%)`,
+      `contrast(${lookContrast}%)`,
+      `saturate(${lookSaturation}%)`,
+      `hue-rotate(${lookHueRotate}deg)`,
+      `sepia(${lookSepia}%)`
+    );
+  }
+  return base.join(" ");
 }
 
 function getDefaultTextInsertPoint() {
@@ -703,6 +793,11 @@ function getDefaultTextInsertPoint() {
     x: insert.x,
     y: insert.y,
   };
+}
+
+function getDefaultTextFontSize() {
+  // Scale default text for large publication canvases while keeping smaller canvases usable.
+  return clamp(Math.round(state.canvas.width * 0.02), 24, 64);
 }
 
 function getDefaultInsertPoint(width, height, top = DEFAULT_INSERT_TOP) {
@@ -2720,6 +2815,10 @@ function setReadOnlyMode(enabled) {
     propImageVersionPrevBtn,
     propImageVersionNextBtn,
     propImageRevertOriginalBtn,
+    propImageFilmLook,
+    propImageFilmLookStrength,
+    propImageFilmLookStrengthNumber,
+    propImageFilmLookResetBtn,
     applyCanvasSizeBtn,
   ].forEach((control) => {
     if (!control) return;
@@ -3715,6 +3814,8 @@ function buildElementFromAiSpec(spec, index) {
       imageGrayscale: clamp(Number(spec?.imageGrayscale ?? 0), 0, 100),
       imageSepia: clamp(Number(spec?.imageSepia ?? 0), 0, 100),
       imageHue: normalizeImageFilterValue(spec?.imageHue ?? 0, "hue"),
+      imageFilmLookId: normalizeFilmLookId(spec?.imageFilmLookId ?? "none"),
+      imageFilmLookStrength: normalizeFilmLookStrength(spec?.imageFilmLookStrength ?? 100),
       aiVersionHistory: [src],
       aiVersionIndex: 0,
       layerName: `Image ${index + 1}`,
@@ -4118,6 +4219,8 @@ function addElement(partial) {
     imageGrayscale: clamp(Number(partial.imageGrayscale ?? 0), 0, 100),
     imageSepia: clamp(Number(partial.imageSepia ?? 0), 0, 100),
     imageHue: normalizeImageFilterValue(partial.imageHue ?? 0, "hue"),
+    imageFilmLookId: normalizeFilmLookId(partial.imageFilmLookId ?? "none"),
+    imageFilmLookStrength: normalizeFilmLookStrength(partial.imageFilmLookStrength ?? 100),
     aiVersionHistory: Array.isArray(partial.aiVersionHistory)
       ? [...partial.aiVersionHistory]
       : (partial.type === "image" && partial.src ? [partial.src] : []),
@@ -4253,8 +4356,9 @@ function addIconOverlay(iconName) {
 
 function addTextOverlay(x = null, y = null) {
   const fallbackPoint = getDefaultTextInsertPoint();
+  const defaultFontSize = getDefaultTextFontSize();
   const defaults = measureTextBounds("Text", {
-    fontSize: 24,
+    fontSize: defaultFontSize,
     fontFamily: DEFAULT_TEXT_FONT_FAMILY,
     fontWeight: "400",
     lineHeight: 1.2,
@@ -4268,7 +4372,7 @@ function addTextOverlay(x = null, y = null) {
     y: y == null ? fallbackPoint.y : Math.round(y),
     width: defaults.width,
     height: defaults.height,
-    fontSize: 24,
+    fontSize: defaultFontSize,
     fontFamily: DEFAULT_TEXT_FONT_FAMILY,
     fontWeight: "400",
     textColor: "#11131f",
@@ -4926,6 +5030,12 @@ function renderInspector() {
     if (propImageGrayscale) propImageGrayscale.value = String(clamp(Number(selected.imageGrayscale ?? 0), 0, 100));
     if (propImageSepia) propImageSepia.value = String(clamp(Number(selected.imageSepia ?? 0), 0, 100));
     if (propImageHue) propImageHue.value = String(normalizeImageFilterValue(selected.imageHue ?? 0, "hue"));
+    if (propImageFilmLook) propImageFilmLook.value = normalizeFilmLookId(selected.imageFilmLookId ?? "none");
+    syncRangeNumber(
+      propImageFilmLookStrength,
+      propImageFilmLookStrengthNumber,
+      normalizeFilmLookStrength(selected.imageFilmLookStrength ?? 100)
+    );
     if (propImageAiEditBtn) {
       const ready = Boolean(selected.src) && hasEnoughCredits(1) && !state.isReadOnly;
       propImageAiEditBtn.disabled = !ready;
@@ -5136,8 +5246,9 @@ function onPointerUp() {
     const left = Math.min(startX, endX);
     const top = Math.min(startY, endY);
     state.textDraw = null;
+    const defaultFontSize = getDefaultTextFontSize();
     const defaults = measureTextBounds("Text", {
-      fontSize: 24,
+      fontSize: defaultFontSize,
       fontFamily: DEFAULT_TEXT_FONT_FAMILY,
       fontWeight: "400",
       lineHeight: 1.2,
@@ -5153,7 +5264,7 @@ function onPointerUp() {
         y: Math.round(top),
         width: Math.round(useDefaultSize ? defaults.width : width),
         height: Math.round(useDefaultSize ? defaults.height : height),
-        fontSize: 24,
+        fontSize: defaultFontSize,
         fontFamily: DEFAULT_TEXT_FONT_FAMILY,
         fontWeight: "400",
         textColor: "#11131f",
@@ -6055,6 +6166,8 @@ function serializeElementForManifest(item) {
         grayscale: Number(item.imageGrayscale ?? 0),
         sepia: Number(item.imageSepia ?? 0),
         hue: Number(item.imageHue ?? 0),
+        filmLookId: normalizeFilmLookId(item.imageFilmLookId ?? "none"),
+        filmLookStrength: normalizeFilmLookStrength(item.imageFilmLookStrength ?? 100),
       },
     };
   }
@@ -8102,6 +8215,22 @@ function bindEvents() {
   propImageHue?.addEventListener("input", () =>
     applyInspectorPatch({ imageHue: normalizeImageFilterValue(propImageHue.value, "hue") })
   );
+  propImageFilmLook?.addEventListener("change", () =>
+    applyInspectorPatch({ imageFilmLookId: normalizeFilmLookId(propImageFilmLook.value) })
+  );
+  const applyImageFilmLookStrength = (value) => {
+    const next = normalizeFilmLookStrength(value);
+    syncRangeNumber(propImageFilmLookStrength, propImageFilmLookStrengthNumber, next);
+    applyInspectorPatch({ imageFilmLookStrength: next });
+  };
+  propImageFilmLookStrength?.addEventListener("input", () => applyImageFilmLookStrength(propImageFilmLookStrength.value));
+  propImageFilmLookStrengthNumber?.addEventListener("input", () => applyImageFilmLookStrength(propImageFilmLookStrengthNumber.value));
+  propImageFilmLookResetBtn?.addEventListener("click", () =>
+    runWithHistory(
+      () => applyInspectorPatch({ imageFilmLookId: "none", imageFilmLookStrength: 100 }),
+      "inspector"
+    )
+  );
   bindRangeReset(propImageBrightness, 100, () =>
     runWithHistory(
       () => applyInspectorPatch({ imageBrightness: normalizeImageFilterValue(100, "percent") }),
@@ -8247,6 +8376,9 @@ function bindEvents() {
     propImageGrayscale,
     propImageSepia,
     propImageHue,
+    propImageFilmLook,
+    propImageFilmLookStrength,
+    propImageFilmLookStrengthNumber,
     propIconName,
     propIconColor,
     propIconColorHex,
@@ -8391,6 +8523,7 @@ async function init() {
   loadAiImagePrefs();
   removeEditorShareUi();
   populateIconControls();
+  populateFilmLookOptions();
   updateGridFlyoutOptions();
   updateAiImageRegenerateButton();
   updateCreditsUI();

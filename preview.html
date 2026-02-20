@@ -569,6 +569,20 @@
                 Hue
                 <input id="propImageHue" type="range" min="0" max="360" value="0" />
               </label>
+              <label>
+                Film Looks
+                <select id="propImageFilmLook"></select>
+              </label>
+              <label>
+                Look Strength
+                <div class="bf-range-with-number">
+                  <input id="propImageFilmLookStrength" type="range" min="0" max="100" value="100" />
+                  <input id="propImageFilmLookStrengthNumber" type="number" min="0" max="100" value="100" />
+                </div>
+              </label>
+              <button id="propImageFilmLookResetBtn" type="button" class="bf-icon-only-btn" title="Reset Look" aria-label="Reset Look">
+                <i data-lucide="rotate-ccw"></i>
+              </button>
               <div class="bf-image-actions-row">
                 <button id="propImageAiEditBtn" type="button" class="bf-ai-edit-btn" title="AI Edit" aria-label="AI Edit">
                   <i data-lucide="sparkles"></i>

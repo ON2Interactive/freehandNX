@@ -136,6 +136,18 @@ function buildPersistentPreviewUrl(origin, shareId) {
   return `${safeOrigin}/preview/${encodeURIComponent(safeShareId)}`;
 }
 
+function normalizeRedirectUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+}
+
 function createShareId() {
   return crypto.randomBytes(9).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
@@ -402,6 +414,26 @@ async function handleAuthBootstrap(req, res) {
   } catch (error) {
     return sendJson(res, 400, { error: error?.message || "Could not bootstrap auth session." });
   }
+}
+
+function handleAuthGoogleStart(req, res) {
+  if (!SUPABASE_URL) {
+    res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
+    res.end("Supabase OAuth is not configured.");
+    return;
+  }
+  const reqUrl = new URL(req.url || "/", `http://${req.headers.host || "127.0.0.1"}`);
+  const requested = normalizeRedirectUrl(reqUrl.searchParams.get("redirect_to"));
+  const fallbackRedirect = `${buildRequestOrigin(req)}/auth-callback`;
+  const redirectTo = requested || fallbackRedirect;
+  const authorizeUrl = new URL("/auth/v1/authorize", SUPABASE_URL);
+  authorizeUrl.searchParams.set("provider", "google");
+  authorizeUrl.searchParams.set("redirect_to", redirectTo);
+  res.writeHead(302, {
+    Location: authorizeUrl.toString(),
+    "Cache-Control": "no-store",
+  });
+  res.end();
 }
 
 function buildProjectSessionObjectPath(userId, projectId) {
@@ -1811,6 +1843,11 @@ function requestHandler(req, res) {
 
   if (req.method === "POST" && pathname === "/api/auth/bootstrap") {
     handleAuthBootstrap(req, res);
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/auth/google/start") {
+    handleAuthGoogleStart(req, res);
     return;
   }
 
