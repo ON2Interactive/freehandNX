@@ -39,14 +39,15 @@ function loadEnvFile(filePath) {
 loadEnvFile(path.join(ROOT, ".env"));
 
 const PORT = Number(process.env.PORT || 4174);
-const SHARE_STORE_FILE = path.join(ROOT, ".magx-shares.json");
+const SHARE_STORE_FILE = path.join(ROOT, ".freehandnx-shares.json");
 const SHARE_PAYLOAD_MAX_BYTES = 40 * 1024 * 1024;
 const SHARE_MAX_ITEMS = 300;
 const SUPABASE_URL = cleanEnvValue(process.env.SUPABASE_URL || "");
 const SUPABASE_SERVICE_ROLE_KEY = cleanEnvValue(process.env.SUPABASE_SERVICE_ROLE_KEY || "");
-const SUPABASE_STORAGE_BUCKET = cleanEnvValue(process.env.SUPABASE_STORAGE_BUCKET || "magx-assets");
+const SUPABASE_STORAGE_BUCKET = cleanEnvValue(process.env.SUPABASE_STORAGE_BUCKET || "freehandnx-assets");
+const PROJECT_SESSIONS_BUCKET = "project-sessions";
 const PUBLIC_APP_ORIGIN = cleanEnvValue(
-  process.env.MAGX_PUBLIC_ORIGIN || process.env.PUBLIC_APP_ORIGIN || process.env.NEXT_PUBLIC_SITE_URL || ""
+  process.env.FREEHANDNX_PUBLIC_ORIGIN || process.env.PUBLIC_APP_ORIGIN || process.env.NEXT_PUBLIC_SITE_URL || ""
 );
 const APP_ADMIN_EMAILS = new Set(
   (cleanEnvValue(process.env.APP_ADMIN_EMAILS || "kipme001@gmail.com") || "")
@@ -166,6 +167,47 @@ function decodeJwtPayload(token) {
   }
 }
 
+function isLikelyUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || "").trim());
+}
+
+function getBearerToken(req) {
+  const header = String(req.headers.authorization || "").trim();
+  if (!header.toLowerCase().startsWith("bearer ")) return "";
+  return header.slice(7).trim();
+}
+
+function getSupabaseServiceHeaders() {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    return { ok: false, error: "Supabase service role is not configured." };
+  }
+  const headers = {
+    apikey: SUPABASE_SERVICE_ROLE_KEY,
+    Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    "Content-Type": "application/json",
+  };
+  return {
+    ok: true,
+    config: { url: SUPABASE_URL },
+    headers,
+  };
+}
+
+async function getAuthenticatedSupabaseUser(req) {
+  const token = getBearerToken(req);
+  if (!token) return { ok: false, status: 401, error: "Missing bearer token." };
+  const claims = decodeJwtPayload(token);
+  const userId = String(claims?.sub || "").trim();
+  if (!isLikelyUuid(userId)) return { ok: false, status: 401, error: "Invalid auth token." };
+  return {
+    ok: true,
+    user: {
+      id: userId,
+      email: String(claims?.email || "").trim().toLowerCase(),
+    },
+  };
+}
+
 function parseJsonBody(req, options = {}) {
   const maxBytes = Math.max(1024, Number(options.maxBytes) || 4 * 1024 * 1024);
   return new Promise((resolve, reject) => {
@@ -223,6 +265,279 @@ async function handleAuthBootstrap(req, res) {
     });
   } catch (error) {
     return sendJson(res, 400, { error: error?.message || "Could not bootstrap auth session." });
+  }
+}
+
+function buildProjectSessionObjectPath(userId, projectId) {
+  return `${encodeURIComponent(String(userId || "").trim())}/${encodeURIComponent(String(projectId || "").trim())}.json`;
+}
+
+function isStorageObjectMissingReason(reason = "") {
+  const text = String(reason || "").toLowerCase();
+  if (!text) return false;
+  return text.includes("object not found") || text.includes('"error":"not_found"') || text.includes('"error":"object_not_found"');
+}
+
+async function ensureProjectSessionsBucket(service) {
+  const { config, headers } = service;
+  const checkResponse = await fetch(`${config.url}/storage/v1/bucket/${PROJECT_SESSIONS_BUCKET}`, {
+    method: "GET",
+    headers,
+  });
+  if (checkResponse.ok) return { ok: true };
+  const reason = await checkResponse.text().catch(() => "");
+  const bucketMissing = checkResponse.status === 404 || String(reason || "").toLowerCase().includes("bucket not found");
+  if (!bucketMissing) {
+    return { ok: false, status: 502, error: `Unable to check project bucket.${reason ? ` ${reason}` : ""}` };
+  }
+  const createResponse = await fetch(`${config.url}/storage/v1/bucket`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      id: PROJECT_SESSIONS_BUCKET,
+      name: PROJECT_SESSIONS_BUCKET,
+      public: false,
+      allowed_mime_types: ["application/json"],
+    }),
+  });
+  if (!createResponse.ok && createResponse.status !== 409) {
+    const createReason = await createResponse.text().catch(() => "");
+    return { ok: false, status: 502, error: `Unable to create project bucket.${createReason ? ` ${createReason}` : ""}` };
+  }
+  return { ok: true };
+}
+
+async function getOwnedProject(req, userId, projectId) {
+  if (!isLikelyUuid(projectId)) {
+    return { ok: false, status: 400, error: "Invalid project id." };
+  }
+  const service = getSupabaseServiceHeaders();
+  if (!service.ok) return { ok: false, status: 500, error: service.error };
+  const { config, headers } = service;
+  const response = await fetch(
+    `${config.url}/rest/v1/projects?select=id,name,status,cover_image_url,created_at,last_opened_at,updated_at&id=eq.${encodeURIComponent(projectId)}&user_id=eq.${encodeURIComponent(userId)}&limit=1`,
+    {
+      method: "GET",
+      headers,
+    }
+  );
+  if (!response.ok) {
+    const reason = await response.text().catch(() => "");
+    return { ok: false, status: 502, error: `Unable to read project.${reason ? ` ${reason}` : ""}` };
+  }
+  const rows = await response.json().catch(() => []);
+  const project = Array.isArray(rows) ? rows[0] : null;
+  if (!project) return { ok: false, status: 404, error: "Project not found." };
+  return { ok: true, service, project };
+}
+
+async function handleProjectsList(req, res) {
+  const authResult = await getAuthenticatedSupabaseUser(req);
+  if (!authResult.ok) {
+    return sendJson(res, authResult.status || 401, { error: authResult.error || "Unauthorized." });
+  }
+  const service = getSupabaseServiceHeaders();
+  if (!service.ok) {
+    return sendJson(res, 500, { error: service.error });
+  }
+  const userId = String(authResult.user?.id || "").trim();
+  const { config, headers } = service;
+  const response = await fetch(
+    `${config.url}/rest/v1/projects?select=id,name,status,cover_image_url,created_at,last_opened_at,updated_at&user_id=eq.${encodeURIComponent(userId)}&order=last_opened_at.desc.nullslast&order=created_at.desc&limit=200`,
+    {
+      method: "GET",
+      headers,
+    }
+  );
+  if (!response.ok) {
+    const reason = await response.text().catch(() => "");
+    return sendJson(res, 502, { error: `Unable to load projects.${reason ? ` ${reason}` : ""}` });
+  }
+  const rows = await response.json().catch(() => []);
+  const projects = Array.isArray(rows)
+    ? rows.map((row) => ({
+        id: String(row?.id || ""),
+        name: String(row?.name || ""),
+        status: String(row?.status || "active"),
+        coverImageUrl: String(row?.cover_image_url || ""),
+        createdAt: row?.created_at || null,
+        lastOpenedAt: row?.last_opened_at || null,
+        updatedAt: row?.updated_at || null,
+      }))
+    : [];
+  return sendJson(res, 200, { projects });
+}
+
+async function handleProjectsCreate(req, res) {
+  const authResult = await getAuthenticatedSupabaseUser(req);
+  if (!authResult.ok) {
+    return sendJson(res, authResult.status || 401, { error: authResult.error || "Unauthorized." });
+  }
+  const service = getSupabaseServiceHeaders();
+  if (!service.ok) {
+    return sendJson(res, 500, { error: service.error });
+  }
+  try {
+    const payload = await parseJsonBody(req);
+    const fallbackName = `Session ${new Date().toISOString().slice(0, 10)}`;
+    const name = String(payload?.name || fallbackName).trim().replace(/\s+/g, " ").slice(0, 120) || fallbackName;
+    const userId = String(authResult.user?.id || "").trim();
+    const { config, headers } = service;
+    const response = await fetch(`${config.url}/rest/v1/projects`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify([
+        {
+          user_id: userId,
+          name,
+          status: "active",
+          last_opened_at: new Date().toISOString(),
+        },
+      ]),
+    });
+    if (!response.ok) {
+      const reason = await response.text().catch(() => "");
+      return sendJson(res, 502, { error: `Unable to create project.${reason ? ` ${reason}` : ""}` });
+    }
+    const rows = await response.json().catch(() => []);
+    const project = Array.isArray(rows) ? rows[0] : null;
+    if (!project) return sendJson(res, 500, { error: "Project create response was empty." });
+    return sendJson(res, 200, {
+      project: {
+        id: String(project.id || ""),
+        name: String(project.name || name),
+        status: String(project.status || "active"),
+        coverImageUrl: String(project.cover_image_url || ""),
+        createdAt: project.created_at || null,
+        lastOpenedAt: project.last_opened_at || null,
+        updatedAt: project.updated_at || null,
+      },
+    });
+  } catch (error) {
+    return sendJson(res, 400, { error: error?.message || "Invalid request payload." });
+  }
+}
+
+async function handleProjectSessionLoad(req, res, projectId) {
+  const authResult = await getAuthenticatedSupabaseUser(req);
+  if (!authResult.ok) {
+    return sendJson(res, authResult.status || 401, { error: authResult.error || "Unauthorized." });
+  }
+  const userId = String(authResult.user?.id || "").trim();
+  const owned = await getOwnedProject(req, userId, projectId);
+  if (!owned.ok) {
+    return sendJson(res, owned.status || 500, { error: owned.error || "Unable to load project." });
+  }
+  const { service, project } = owned;
+  const bucketReady = await ensureProjectSessionsBucket(service);
+  if (!bucketReady.ok) {
+    return sendJson(res, bucketReady.status || 500, { error: bucketReady.error || "Unable to prepare project bucket." });
+  }
+  const { config, headers } = service;
+  const objectPath = buildProjectSessionObjectPath(userId, projectId);
+  const response = await fetch(`${config.url}/storage/v1/object/${PROJECT_SESSIONS_BUCKET}/${objectPath}`, {
+    method: "GET",
+    headers,
+  });
+  if (response.status === 404) {
+    return sendJson(res, 200, { project, session: null });
+  }
+  if (!response.ok) {
+    const reason = await response.text().catch(() => "");
+    if (String(reason || "").toLowerCase().includes("bucket not found") || isStorageObjectMissingReason(reason)) {
+      return sendJson(res, 200, { project, session: null });
+    }
+    return sendJson(res, 502, { error: `Unable to load project session.${reason ? ` ${reason}` : ""}` });
+  }
+  const raw = await response.text().catch(() => "");
+  if (!raw) return sendJson(res, 200, { project, session: null });
+  try {
+    const parsed = JSON.parse(raw);
+    return sendJson(res, 200, { project, session: parsed });
+  } catch {
+    return sendJson(res, 200, { project, session: null });
+  }
+}
+
+async function handleProjectSessionSave(req, res, projectId) {
+  const authResult = await getAuthenticatedSupabaseUser(req);
+  if (!authResult.ok) {
+    return sendJson(res, authResult.status || 401, { error: authResult.error || "Unauthorized." });
+  }
+  const userId = String(authResult.user?.id || "").trim();
+  const owned = await getOwnedProject(req, userId, projectId);
+  if (!owned.ok) {
+    return sendJson(res, owned.status || 500, { error: owned.error || "Unable to save project." });
+  }
+  try {
+    const payload = await parseJsonBody(req, { maxBytes: 120 * 1024 * 1024 });
+    if (!payload || typeof payload?.session !== "object" || payload.session == null) {
+      return sendJson(res, 400, { error: "Missing session payload." });
+    }
+    const nextName = String(payload?.name || "").trim().replace(/\s+/g, " ").slice(0, 120);
+    const nextCoverImageUrlRaw = String(payload?.coverImageUrl || "").trim();
+    const nextCoverImageUrl = nextCoverImageUrlRaw.startsWith("data:image/") ? nextCoverImageUrlRaw : "";
+    const { service } = owned;
+    const bucketReady = await ensureProjectSessionsBucket(service);
+    if (!bucketReady.ok) {
+      return sendJson(res, bucketReady.status || 500, { error: bucketReady.error || "Unable to prepare project bucket." });
+    }
+    const { config, headers } = service;
+    const objectPath = buildProjectSessionObjectPath(userId, projectId);
+    const saveResponse = await fetch(`${config.url}/storage/v1/object/${PROJECT_SESSIONS_BUCKET}/${objectPath}`, {
+      method: "POST",
+      headers: {
+        ...headers,
+        "Content-Type": "application/json",
+        "x-upsert": "true",
+      },
+      body: JSON.stringify(payload.session),
+    });
+    if (!saveResponse.ok) {
+      const reason = await saveResponse.text().catch(() => "");
+      return sendJson(res, 502, { error: `Unable to save session file.${reason ? ` ${reason}` : ""}` });
+    }
+    const updates = { last_opened_at: new Date().toISOString() };
+    if (nextName) updates.name = nextName;
+    if (nextCoverImageUrl) updates.cover_image_url = nextCoverImageUrl;
+    const updateResponse = await fetch(
+      `${config.url}/rest/v1/projects?id=eq.${encodeURIComponent(projectId)}&user_id=eq.${encodeURIComponent(userId)}`,
+      {
+        method: "PATCH",
+        headers: {
+          ...headers,
+          Prefer: "return=representation",
+        },
+        body: JSON.stringify(updates),
+      }
+    );
+    if (!updateResponse.ok) {
+      const reason = await updateResponse.text().catch(() => "");
+      return sendJson(res, 502, { error: `Unable to update project metadata.${reason ? ` ${reason}` : ""}` });
+    }
+    const rows = await updateResponse.json().catch(() => []);
+    const project = Array.isArray(rows) ? rows[0] : null;
+    return sendJson(res, 200, {
+      ok: true,
+      project: project
+        ? {
+            id: String(project.id || ""),
+            name: String(project.name || ""),
+            status: String(project.status || "active"),
+            coverImageUrl: String(project.cover_image_url || ""),
+            createdAt: project.created_at || null,
+            lastOpenedAt: project.last_opened_at || null,
+            updatedAt: project.updated_at || null,
+          }
+        : null,
+    });
+  } catch (error) {
+    const message = String(error?.message || "Invalid request payload.");
+    const isTooLarge = message.toLowerCase().includes("payload too large");
+    return sendJson(res, isTooLarge ? 413 : 400, { error: message });
   }
 }
 
@@ -395,7 +710,7 @@ function handleShareCreate(req, res) {
       const project = parsed?.project || parsed;
       const ownerId =
         normalizeOwnerId(parsed?.ownerId) ||
-        normalizeOwnerId(req.headers["x-magx-owner-id"]) ||
+        normalizeOwnerId(req.headers["x-freehandnx-owner-id"]) ||
         `usr_${createShareId()}`;
       const validation = validateSharedProjectPayload(project, {
         skipSizeLimit: hasSupabaseShareBackend(),
@@ -450,7 +765,7 @@ async function handleShareInit(req, res) {
     const parsed = await parseJsonBody(req, { maxBytes: 512 * 1024 });
     const ownerId =
       normalizeOwnerId(parsed?.ownerId) ||
-      normalizeOwnerId(req.headers["x-magx-owner-id"]) ||
+      normalizeOwnerId(req.headers["x-freehandnx-owner-id"]) ||
       `usr_${createShareId()}`;
     const requestedShareId = normalizeShareIdCandidate(parsed?.requestedShareId);
     const id = requestedShareId || createShareId();
@@ -497,7 +812,7 @@ async function handleShareProjectUpload(req, res, shareId) {
     const project = parsed?.project || parsed;
     const ownerId =
       normalizeOwnerId(parsed?.ownerId) ||
-      normalizeOwnerId(req.headers["x-magx-owner-id"]) ||
+      normalizeOwnerId(req.headers["x-freehandnx-owner-id"]) ||
       `usr_${createShareId()}`;
     const validation = validateSharedProjectPayload(project, {
       skipSizeLimit: hasSupabaseShareBackend(),
@@ -693,8 +1008,8 @@ function isLikelyGoogleApiKey(value) {
 
 function normalizeLayoutModelName(value) {
   const normalized = normalizeEnvValue(value);
-  if (!normalized) return "gemini-2.0-flash";
-  if (!/^[a-zA-Z0-9._-]+$/.test(normalized)) return "gemini-2.0-flash";
+  if (!normalized) return "gemini-2.5-flash";
+  if (!/^[a-zA-Z0-9._-]+$/.test(normalized)) return "gemini-2.5-flash";
   return normalized;
 }
 
@@ -730,13 +1045,20 @@ function normalizeRecraftToken(value) {
 }
 
 function selectRecraftGenerationModel(model, resolution) {
-  const requested = normalizeImageModelName(model);
-  const explicit = normalizeImageModelName(process.env.RECRAFT_IMAGE_MODEL || "");
+  const requestedRaw = normalizeEnvValue(model);
+  const explicitRaw = normalizeEnvValue(process.env.RECRAFT_IMAGE_MODEL || "");
+  const requested = requestedRaw ? normalizeImageModelName(requestedRaw) : "";
+  const explicit = explicitRaw ? normalizeImageModelName(explicitRaw) : "";
   const defaultForResolution = resolution === "1K" ? "recraftv4" : "recraftv4_pro";
   const allowed = new Set(["recraftv3", "recraftv4", "recraftv4_pro"]);
-  if (allowed.has(requested)) return requested;
-  if (allowed.has(explicit)) return explicit;
-  return defaultForResolution;
+  let candidate = defaultForResolution;
+  if (allowed.has(requested)) candidate = requested;
+  else if (allowed.has(explicit)) candidate = explicit;
+
+  // Keep model/resolution combinations compatible with Recraft API constraints.
+  if (resolution === "1K" && candidate === "recraftv4_pro") return "recraftv4";
+  if ((resolution === "2K" || resolution === "4K") && candidate === "recraftv4") return "recraftv4_pro";
+  return candidate;
 }
 
 function selectRecraftEditModel() {
@@ -1073,7 +1395,7 @@ async function handleLayoutGenerate(req, res) {
       }
 
       const count = Math.max(1, Math.min(5, Number(pageCount) || 1));
-      const styleText = String(style || "magx-inspired").trim();
+      const styleText = String(style || "freehandnx-inspired").trim();
       const anthropicApiKey = normalizeEnvValue(process.env.ANTHROPIC_API_KEY || "");
       const googleApiKey = normalizeGoogleApiKey(process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || "");
 
@@ -1257,7 +1579,7 @@ function serveStatic(req, res) {
   let reqPath =
     rawPath === "/"
       ? "/index.html"
-      : rawPath === "/magx" || rawPath === "/editor" || isUuidSharePath || isPreviewSharePath
+      : rawPath === "/freehandnx" || rawPath === "/editor" || isUuidSharePath || isPreviewSharePath
         ? "/editor.html"
         : rawPath === "/preview"
           ? "/preview.html"
@@ -1295,6 +1617,7 @@ function serveStatic(req, res) {
 function requestHandler(req, res) {
   const reqUrl = new URL(req.url || "/", `http://${req.headers.host || "127.0.0.1"}`);
   const pathname = reqUrl.pathname;
+  const projectSessionPathMatch = pathname.match(/^\/api\/projects\/([^/]+)\/session$/);
   const legacyUuidPathMatch = String(pathname || "").match(
     /^\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$/
   );
@@ -1352,6 +1675,26 @@ function requestHandler(req, res) {
 
   if (req.method === "POST" && pathname === "/api/auth/bootstrap") {
     handleAuthBootstrap(req, res);
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/projects") {
+    handleProjectsList(req, res);
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/projects") {
+    handleProjectsCreate(req, res);
+    return;
+  }
+
+  if (req.method === "GET" && projectSessionPathMatch) {
+    handleProjectSessionLoad(req, res, projectSessionPathMatch[1]);
+    return;
+  }
+
+  if (req.method === "PUT" && projectSessionPathMatch) {
+    handleProjectSessionSave(req, res, projectSessionPathMatch[1]);
     return;
   }
 

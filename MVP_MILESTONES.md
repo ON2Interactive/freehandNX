@@ -1,4 +1,4 @@
-# MagX MVP Milestones
+# FreehandNX MVP Milestones
 
 ## Scope Guardrail
 Current editor stays unchanged until explicitly approved. Initial work is planning, modeling, and non-invasive scaffolding.
@@ -13,20 +13,20 @@ Deliverables:
 - Build checklist agreed
 
 Exit Criteria:
-- Shared understanding of what MagX is and is not
+- Shared understanding of what FreehandNX is and is not
 - Clear execution order with minimal risk to current editor
 
 ## Phase 1 - Project Identity + Baseline Hygiene
-Goal: prepare the cloned baseline to operate as MagX without feature churn.
+Goal: prepare the cloned baseline to operate as FreehandNX without feature churn.
 
 Deliverables:
 - Naming alignment in docs and UI labels where safe
 - Route and share naming review
-- Deployment/environment audit for MagX context
+- Deployment/environment audit for FreehandNX context
 - No editor interaction model changes
 
 Exit Criteria:
-- Project can run/deploy as MagX identity
+- Project can run/deploy as FreehandNX identity
 - Existing editor behavior remains stable
 
 ## Phase 2 - Page Model Hardening

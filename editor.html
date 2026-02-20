@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MagX</title>
+    <title>FreehandNX</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -16,7 +16,7 @@
     <div class="bf-app-shell">
       <header class="bf-topbar">
         <div class="bf-topbar-left">
-          <a class="bf-home-link" href="/">MagX</a>
+          <a class="bf-home-link" href="/">FreehandNX</a>
         </div>
         <div class="bf-topbar-center">
           <div class="zoom-controls">
@@ -84,9 +84,16 @@
           <button id="shareBtn" class="icon-btn" type="button" aria-label="Share Project" title="Share Project">
             <i data-lucide="share-2"></i>
           </button>
-          <button id="exportBtn" class="icon-btn icon-btn-text icon-btn-export" type="button" aria-label="Export" title="Export">
+          <button id="topbarBuyCreditsBtn" class="icon-btn icon-btn-text" type="button" aria-label="Buy Credits" title="Buy Credits">
+            <i data-lucide="wallet"></i>
+            <span>Buy Credits</span>
+          </button>
+          <button id="topbarOrderBtn" class="icon-btn icon-btn-text" type="button" aria-label="Order" title="Order">
+            <i data-lucide="printer"></i>
+            <span>Order</span>
+          </button>
+          <button id="exportBtn" class="icon-btn icon-btn-export" type="button" aria-label="Export" title="Export">
             <i data-lucide="download"></i>
-            <span>Export</span>
           </button>
         </div>
       </header>
@@ -111,8 +118,14 @@
           <button id="toolAiImageBtn" type="button" class="tool-btn" aria-label="AI Image" title="AI Image">
             <i data-lucide="wand-sparkles"></i>
           </button>
+          <button id="toolLibraryBtn" type="button" class="tool-btn" aria-label="Library" title="Library">
+            <i data-lucide="library"></i>
+          </button>
           <button id="deleteBtn" type="button" class="tool-btn" title="Reset Canvas" aria-label="Reset Canvas">
             <i data-lucide="rotate-ccw"></i>
+          </button>
+          <button id="toolPrintBtn" type="button" class="tool-btn" aria-label="Print (Device)" title="Print (Device)">
+            <i data-lucide="printer"></i>
           </button>
 
           <div id="shapeFlyout" class="shape-flyout hidden-panel" aria-label="Shape Types">
@@ -148,7 +161,7 @@
 
         <section class="bf-canvas-panel" aria-label="Design Canvas">
           <div class="bf-canvas-wrap">
-            <div id="designCanvas" class="bf-canvas" role="application" aria-label="MagX canvas"></div>
+            <div id="designCanvas" class="bf-canvas" role="application" aria-label="FreehandNX canvas"></div>
           </div>
         </section>
 
@@ -161,13 +174,29 @@
               <label>
                 Size
                 <select id="publicationSizeSelect" aria-label="Publication Size">
-                  <option value="custom">Size</option>
-                  <option value="us_letter_portrait" selected>8.5x11</option>
-                  <option value="us_letter_landscape">11x8.5</option>
-                  <option value="a4_portrait">A4</option>
-                  <option value="a4_landscape">A4 Landscape</option>
-                  <option value="tabloid_portrait">11x17</option>
-                  <option value="tabloid_landscape">17x11</option>
+                  <option value="custom">Custom</option>
+                  <optgroup label="Portrait">
+                    <option value="a3_portrait">A3</option>
+                    <option value="a4_portrait">A4</option>
+                    <option value="a5_portrait">A5</option>
+                    <option value="us_letter_portrait" selected>Letter</option>
+                    <option value="legal_portrait">Legal</option>
+                    <option value="ledger_portrait">Ledger</option>
+                    <option value="us_trade_paperback_portrait">US Trade Paperback</option>
+                    <option value="half_letter_portrait">Half Letter</option>
+                    <option value="oversize_magazine_portrait">Oversize Magazine</option>
+                  </optgroup>
+                  <optgroup label="Landscape">
+                    <option value="a3_landscape">A3</option>
+                    <option value="a4_landscape">A4</option>
+                    <option value="a5_landscape">A5</option>
+                    <option value="us_letter_landscape">Letter</option>
+                    <option value="legal_landscape">Legal</option>
+                    <option value="ledger_landscape">Ledger</option>
+                    <option value="us_trade_paperback_landscape">US Trade Paperback</option>
+                    <option value="half_letter_landscape">Half Letter</option>
+                    <option value="oversize_magazine_landscape">Oversize Magazine</option>
+                  </optgroup>
                 </select>
               </label>
               <label>
@@ -598,7 +627,6 @@
             <ul id="layerList" class="bf-layer-list"></ul>
           </details>
 
-          <p id="statusText" class="bf-status" aria-live="polite"></p>
           <div class="bf-credits-footer">
             <button id="creditsBtn" type="button" class="bf-credits-btn">Credits: 0</button>
           </div>
@@ -692,52 +720,50 @@
       </div>
     </div>
 
-    <div id="settingsModal" class="bf-modal hidden" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
-      <div class="bf-modal-card">
-        <button id="settingsModalCloseBtn" type="button" class="bf-icon-only-btn bf-modal-close-btn" title="Close" aria-label="Close">
+    <div id="settingsModal" class="bf-modal hidden" role="dialog" aria-modal="true" aria-label="Settings">
+      <div class="bf-modal-card settings-menu-card">
+        <button id="settingsModalCloseBtn" type="button" class="bf-icon-only-btn bf-modal-close-btn" title="Close" aria-label="Close" data-close-modal="settingsModal" onpointerdown="this.closest('.bf-modal')?.classList.add('hidden');event.stopPropagation();" onclick="this.closest('.bf-modal')?.classList.add('hidden');event.stopPropagation();">
           <i data-lucide="x"></i>
         </button>
-        <h3 id="settingsModalTitle">Settings</h3>
-        <p class="bf-modal-subtitle">Project storage is local for now. Supabase wiring can be connected next.</p>
-
-        <label>
-          Project Name
-          <input id="settingsProjectName" type="text" placeholder="Untitled MagX Project" />
-        </label>
-
-        <div class="bf-settings-actions">
-          <button id="settingsSaveProjectBtn" type="button">
-            <i data-lucide="save"></i>
-            <span>Save Local</span>
-          </button>
-          <button id="settingsExportProjectBtn" type="button">
-            <i data-lucide="download"></i>
-            <span>Download JSON</span>
-          </button>
-          <button id="settingsImportProjectBtn" type="button">
-            <i data-lucide="upload"></i>
-            <span>Import JSON</span>
-          </button>
+        <div class="settings-menu-media" aria-hidden="true"></div>
+        <div class="settings-menu-content">
+          <img src="/Logo/FreehandNX-White.svg" alt="FreehandNX" class="settings-menu-logo" />
+          <nav class="settings-menu-links" aria-label="Settings">
+            <button id="settingsManageBtn" type="button" class="settings-menu-link">Manage</button>
+            <button id="settingsCreditsBtn" type="button" class="settings-menu-link">Credits</button>
+            <a id="settingsHelpLink" class="settings-menu-link" href="/help" target="_blank" rel="noopener noreferrer">Help</a>
+          </nav>
+          <p id="settingsModalStatus" class="bf-modal-subtitle"></p>
         </div>
+      </div>
+    </div>
 
-        <label>
-          Saved Projects
-          <select id="settingsSavedProjects" size="6"></select>
-        </label>
-
-        <div class="bf-settings-actions">
-          <button id="settingsLoadProjectBtn" type="button">
-            <i data-lucide="folder-open"></i>
-            <span>Load Selected</span>
+    <div id="libraryModal" class="modal-backdrop library-modal-backdrop hidden-panel" role="dialog" aria-modal="true" aria-label="Project Library">
+      <div class="modal-card library-modal-card">
+        <div class="library-modal-content">
+          <button id="libraryModalCloseBtn" class="icon-btn library-modal-close" type="button" aria-label="Close Project Library" data-close-modal="libraryModal" onpointerdown="this.closest('.modal-backdrop')?.classList.add('hidden-panel');event.stopPropagation();" onclick="this.closest('.modal-backdrop')?.classList.add('hidden-panel');event.stopPropagation();">
+            <i data-lucide="x"></i>
           </button>
-          <button id="settingsDeleteProjectBtn" type="button" class="bf-danger-btn">
-            <i data-lucide="trash-2"></i>
-            <span>Delete Selected</span>
-          </button>
+          <h3 class="bf-modal-title">Project Sessions</h3>
+          <section id="settingsProjectsPanel" class="settings-projects-panel library-projects-panel" aria-label="Project Sessions">
+          <div class="settings-projects-topbar">
+            <input id="settingsProjectNameInput" class="settings-projects-input settings-projects-input-minimal" type="text" maxlength="120" placeholder="Project name" />
+            <div class="settings-projects-actions settings-projects-actions-minimal">
+              <button id="settingsProjectSaveBtn" class="settings-projects-action settings-projects-action-icon" type="button" aria-label="Save Project" title="Save Project">
+                <i data-lucide="save"></i>
+              </button>
+              <button id="settingsProjectNewBtn" class="settings-projects-action settings-projects-action-icon" type="button" aria-label="New Project" title="New Project">
+                <i data-lucide="plus"></i>
+              </button>
+              <button id="settingsProjectRefreshBtn" class="settings-projects-action settings-projects-action-icon" type="button" aria-label="Refresh Projects" title="Refresh Projects">
+                <i data-lucide="refresh-cw"></i>
+              </button>
+            </div>
+          </div>
+          <p id="settingsProjectsStatus" class="settings-projects-status"></p>
+          <div id="settingsProjectsList" class="settings-projects-list" role="list"></div>
+        </section>
         </div>
-
-        <p id="settingsModalStatus" class="bf-modal-subtitle"></p>
-        <input id="settingsImportInput" type="file" accept="application/json,.json" hidden />
       </div>
     </div>
 

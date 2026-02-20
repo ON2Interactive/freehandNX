@@ -1,12 +1,12 @@
-# MagX
+# FreehandNX
 
-MagX is a freeform multi-page layout editor with AI-assisted page generation.
+FreehandNX is a freeform multi-page layout editor with AI-assisted page generation.
 
 ## App Surfaces
 
 - `/` landing page (`index.html`)
 - `/editor` editor workspace (`editor.html`, `editor.js`, `editor.css`)
-- `/magx` alias route for the editor workspace
+- `/freehandnx` alias route for the editor workspace
 - `POST /api/layout-generate` AI layout endpoint (`server.js`)
 - `POST /api/image-generate` AI image generation/edit endpoint (`server.js`)
 
@@ -42,7 +42,7 @@ Request body:
 ```json
 {
   "prompt": "Landing page for a creative agency",
-  "style": "magx-inspired",
+  "style": "freehandnx-inspired",
   "pageCount": 3
 }
 ```
@@ -80,6 +80,6 @@ Behavior:
 
 ## Deployment
 
-`vercel.json` is configured for the current MagX routes and static files.
+`vercel.json` is configured for the current FreehandNX routes and static files.
 
-Before deploying, confirm the Vercel project is mapped to the dedicated MagX repository and environment variables are set in Vercel.
+Before deploying, confirm the Vercel project is mapped to the dedicated FreehandNX repository and environment variables are set in Vercel.

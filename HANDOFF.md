@@ -1,7 +1,7 @@
-# MagX Handoff
+# FreehandNX Handoff
 
 ## Project Location
-- `/Users/kistudioultra/Documents/Clients/MagX`
+- `/Users/kistudioultra/Documents/Clients/FreehandNX`
 
 ## Primary Repo / Branch
 - Active branch: `main`
@@ -10,13 +10,13 @@
 
 ## Current App Surfaces
 - Landing page: `/` (`index.html`)
-- Editor workspace: `/editor` and `/magx` (`editor.html` + `editor.js` + `editor.css`)
+- Editor workspace: `/editor` and `/freehandnx` (`editor.html` + `editor.js` + `editor.css`)
 - API backend routes: `server.js`
   - `POST /api/layout-generate`
 
 ## Production / Deployment
 - Vercel config present in `vercel.json`
-- Static assets/routes now target MagX editor files (`editor.html`, `editor.js`, `editor.css`)
+- Static assets/routes now target FreehandNX editor files (`editor.html`, `editor.js`, `editor.css`)
 
 ## Env Vars (current)
 - `ANTHROPIC_API_KEY` (optional; primary if present)
@@ -28,17 +28,17 @@
   - `GEMINI_LAYOUT_MODEL`
 
 ## Recent Completed Work (latest)
-- Separated MagX from DarkroomX content in this folder.
+- Separated FreehandNX from DarkroomX content in this folder.
 - Removed DarkroomX legacy files from this project:
   - `studio.html`
   - `app.js`
   - `styles.css`
-- Reworked `server.js` to MagX scope:
+- Reworked `server.js` to FreehandNX scope:
   - removed DarkroomX image-edit/image-generate/Peecho routes
-  - kept MagX layout generation route only
-- Updated landing `index.html` to MagX-only copy/links.
-- Updated `vercel.json` to route/build MagX editor assets.
-- Normalized AI style default string in `editor.js` from `darkroomx-inspired` to `magx-inspired`.
+  - kept FreehandNX layout generation route only
+- Updated landing `index.html` to FreehandNX-only copy/links.
+- Updated `vercel.json` to route/build FreehandNX editor assets.
+- Normalized AI style default string in `editor.js` from `darkroomx-inspired` to `freehandnx-inspired`.
 
 ## Editor Capabilities Already Implemented
 - Multi-page canvas workflow with page drawer and duplicate/delete page controls.
@@ -57,9 +57,9 @@
 - Editor uses local fallback generator when remote AI generation fails.
 
 ## Important In-Progress / Pending
-- Create/use a dedicated MagX git remote (currently still points to DarkroomX remote).
-- Confirm deployment target/project is MagX-specific in Vercel.
-- Review `.env.example` and docs so they only describe MagX requirements.
+- Create/use a dedicated FreehandNX git remote (currently still points to DarkroomX remote).
+- Confirm deployment target/project is FreehandNX-specific in Vercel.
+- Review `.env.example` and docs so they only describe FreehandNX requirements.
 - Decide whether to keep or remove any DarkroomX-branded assets in `assets/` if present.
 
 ## Current Git Working Tree Notes (important)
@@ -77,15 +77,15 @@ Current tree is **not clean**:
   - `editor.html`
   - `editor.js`
 
-Do not discard these changes unless you explicitly want to undo the MagX cleanup/migration.
+Do not discard these changes unless you explicitly want to undo the FreehandNX cleanup/migration.
 
 ## Recommended Resume Prompt for Next Thread
 Use this exact opener in a new thread:
 
-"Continue MagX from `/Users/kistudioultra/Documents/Clients/MagX`. Read `HANDOFF.md` first, keep existing uncommitted changes intact, and continue from latest `main` state."
+"Continue FreehandNX from `/Users/kistudioultra/Documents/Clients/FreehandNX`. Read `HANDOFF.md` first, keep existing uncommitted changes intact, and continue from latest `main` state."
 
 ## Suggested Immediate Next Steps
-1. Point git `origin` to the correct MagX repository.
+1. Point git `origin` to the correct FreehandNX repository.
 2. Commit the separation/migration changes (including file deletions and new editor files).
-3. Deploy/update Vercel project for MagX and verify `/`, `/editor`, and `/magx` routes.
-4. Add a MagX-focused README and environment setup notes.
+3. Deploy/update Vercel project for FreehandNX and verify `/`, `/editor`, and `/freehandnx` routes.
+4. Add a FreehandNX-focused README and environment setup notes.

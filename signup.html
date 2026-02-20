@@ -3,18 +3,93 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Sign Up - DarkroomX</title>
-    <link rel="icon" type="image/svg+xml" href="/assets/darkroomx-favicon.svg" />
-    <link rel="stylesheet" href="styles.css" />
+    <title>Sign Up - FreehandNX</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+      }
+
+      body {
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        background: #050505;
+        color: #f2f2f2;
+      }
+
+      .signup-shell {
+        width: 100vw;
+        height: 100vh;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        overflow: hidden;
+      }
+
+      .signup-media {
+        background: #0e0e0e url("/assets/hero-background.png") center center / cover no-repeat;
+      }
+
+      .signup-panel {
+        position: relative;
+        background: #090909;
+        display: grid;
+        align-content: center;
+        justify-items: start;
+        gap: 18px;
+        padding: 56px 64px 44px;
+      }
+
+      .signup-logo {
+        display: block;
+        width: 280px;
+        max-width: 100%;
+        height: auto;
+        margin-bottom: 20px;
+      }
+
+      .signup-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-start;
+        color: rgba(255, 255, 255, 0.88);
+        text-decoration: none;
+        font-size: 18px;
+        line-height: 1.2;
+        font-weight: 500;
+      }
+
+      .signup-link:hover {
+        color: #fff;
+        text-decoration: underline;
+        text-underline-offset: 5px;
+      }
+
+      @media (max-width: 960px) {
+        .signup-shell {
+          grid-template-columns: 1fr;
+        }
+
+        .signup-media {
+          min-height: 280px;
+        }
+
+        .signup-panel {
+          padding: 28px 24px 24px;
+        }
+      }
+    </style>
   </head>
-  <body class="signup-page">
-    <main class="signup-shell">
-      <a class="signup-back" href="/">← Back to Home</a>
-      <section class="signup-card" aria-label="Sign up">
-        <img src="/assets/darkroomx-logo-white.svg" alt="DarkroomX" class="signup-logo" />
-        <h1>Create your account</h1>
-        <p>Sign up with Google to start editing in DarkroomX.</p>
-        <a class="signup-google-btn" href="/api/auth/google">Continue with Google</a>
+  <body>
+    <main class="signup-shell" aria-label="Sign up">
+      <section class="signup-media" aria-hidden="true"></section>
+      <section class="signup-panel">
+        <img src="/Logo/FreehandNX-White.svg" alt="FreehandNX" class="signup-logo" />
+        <a class="signup-link" href="#">SignUp with Google</a>
       </section>
     </main>
   </body>

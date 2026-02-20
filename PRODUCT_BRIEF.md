@@ -1,7 +1,7 @@
-# MagX Product Brief
+# FreehandNX Product Brief
 
 ## One-Line Intent
-MagX is a modern editorial publishing tool where users design magazine layouts on a canvas and publish them as elegant, page-turning digital magazines.
+FreehandNX is a modern editorial publishing tool where users design magazine layouts on a canvas and publish them as elegant, page-turning digital magazines.
 
 ## Product Goal
 Build a canvas-first editorial design and publishing app for interactive magazines. The editing workflow is design-first; page-turning is an output mode for preview and sharing.

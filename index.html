@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MagX</title>
+    <title>FreehandNX</title>
     <style>
       :root {
         --bg: #1a1a1a;
@@ -31,21 +31,22 @@
       }
       .page {
         min-height: 100vh;
+        padding-top: 78px;
       }
       .nav {
+        position: fixed;
+        inset: 0 0 auto 0;
+        z-index: 4;
         width: 100%;
-        height: 60px;
-        background-color: var(--bg);
-        background-image:
-          linear-gradient(rgba(242, 242, 242, 0.035) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(242, 242, 242, 0.035) 1px, transparent 1px);
-        background-size: 18px 18px;
-        border-bottom: 1px solid var(--line);
+        height: 78px;
+        background: rgba(26, 26, 26, 0.74);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(4px);
       }
       .nav-inner {
         width: 100%;
-        padding: 0 20px;
-        height: 60px;
+        padding: 0 22px;
+        height: 78px;
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -62,10 +63,15 @@
         text-align: left;
       }
       .logo {
-        font-size: 15px;
-        font-weight: 600;
-        letter-spacing: 0.02em;
-        text-transform: uppercase;
+        display: inline-flex;
+        align-items: center;
+        text-decoration: none;
+      }
+      .logo img {
+        display: block;
+        width: 129px;
+        max-width: 100%;
+        height: auto;
       }
       .nav-cta {
         color: var(--text);
@@ -226,6 +232,19 @@
         }
       }
       @media (max-width: 768px) {
+        .page {
+          padding-top: 68px;
+        }
+        .nav {
+          height: 68px;
+        }
+        .nav-inner {
+          height: 68px;
+          padding: 0 14px;
+        }
+        .logo img {
+          width: 99px;
+        }
         h1 {
           font-size: 24px;
         }
@@ -244,7 +263,9 @@
     <div class="page">
       <header class="nav">
         <div class="nav-inner">
-          <div class="logo">MagX</div>
+          <a class="logo" href="/" aria-label="FreehandNX Home">
+            <img src="/Logo/FreehandNX-White.svg" alt="FreehandNX" />
+          </a>
           <a class="nav-cta" href="/editor">Try for Free</a>
         </div>
       </header>
@@ -258,14 +279,14 @@
       </main>
       <section class="section-blank">
         <div class="section-blank-inner">
-          <img src="assets/Screenshots/LP-App_Image.png" alt="MagX app preview" />
+          <img src="assets/Screenshots/LP-App_Image.png" alt="FreehandNX app preview" />
         </div>
       </section>
-      <footer class="landing-footer" aria-label="MagX footer">
+      <footer class="landing-footer" aria-label="FreehandNX footer">
         <div class="landing-footer-inner">
           <div class="landing-footer-top">
-            <a class="landing-footer-logo-link" href="/" aria-label="MagX Home">
-              <img src="/assets/darkroomx-logo-white.svg" alt="MagX" class="landing-footer-logo" />
+            <a class="landing-footer-logo-link" href="/" aria-label="FreehandNX Home">
+              <img src="/Logo/FreehandNX-White.svg" alt="FreehandNX" class="landing-footer-logo" />
             </a>
             <nav class="landing-footer-links" aria-label="Footer">
               <a href="/signup">Sign Up</a>
@@ -278,7 +299,7 @@
             </nav>
           </div>
           <div class="landing-footer-bottom">
-            <p>© <span id="footerYear"></span> MagX. All rights reserved.</p>
+            <p>© <span id="footerYear"></span> FreehandNX. All rights reserved.</p>
           </div>
         </div>
       </footer>

@@ -1,8 +1,8 @@
-# MagX Build Checklist (From Current Baseline)
+# FreehandNX Build Checklist (From Current Baseline)
 
 ## Constraints
 - Do not modify editor behavior until explicitly approved.
-- Treat current MagX editor as stable baseline.
+- Treat current FreehandNX editor as stable baseline.
 - Ship in reversible, isolated increments.
 
 ## Step 1 - Planning Lock
@@ -12,8 +12,8 @@
 - [ ] Confirm phase order with stakeholder
 
 ## Step 2 - Identity and Naming Audit
-- [ ] Ensure user-facing naming is consistently MagX
-- [ ] Review route aliases and decide MagX canonical route(s)
+- [ ] Ensure user-facing naming is consistently FreehandNX
+- [ ] Review route aliases and decide FreehandNX canonical route(s)
 - [ ] Review server/share file naming conventions
 - [ ] Keep compatibility aliases where needed
 

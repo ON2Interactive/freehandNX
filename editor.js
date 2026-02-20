@@ -12,6 +12,10 @@ const toolUploadBtn = document.getElementById("toolUploadBtn");
 const toolShapesBtn = document.getElementById("toolShapesBtn");
 const toolIconsBtn = document.getElementById("toolIconsBtn");
 const toolAiImageBtn = document.getElementById("toolAiImageBtn");
+const toolLibraryBtn = document.getElementById("toolLibraryBtn");
+const toolPrintBtn = document.getElementById("toolPrintBtn");
+const topbarOrderBtn = document.getElementById("topbarOrderBtn");
+const topbarBuyCreditsBtn = document.getElementById("topbarBuyCreditsBtn");
 const settingsBtn = document.getElementById("settingsBtn");
 const shapeFlyout = document.getElementById("shapeFlyout");
 const shapeOptionButtons = Array.from(document.querySelectorAll(".shape-option-btn"));
@@ -81,6 +85,9 @@ const creditsModalBalance = document.getElementById("creditsModalBalance");
 const creditsModalCloseBtn = document.getElementById("creditsModalCloseBtn");
 const settingsModal = document.getElementById("settingsModal");
 const settingsModalCloseBtn = document.getElementById("settingsModalCloseBtn");
+const settingsManageBtn = document.getElementById("settingsManageBtn");
+const settingsCreditsBtn = document.getElementById("settingsCreditsBtn");
+const settingsHelpLink = document.getElementById("settingsHelpLink");
 const settingsProjectName = document.getElementById("settingsProjectName");
 const settingsSaveProjectBtn = document.getElementById("settingsSaveProjectBtn");
 const settingsExportProjectBtn = document.getElementById("settingsExportProjectBtn");
@@ -90,6 +97,14 @@ const settingsLoadProjectBtn = document.getElementById("settingsLoadProjectBtn")
 const settingsDeleteProjectBtn = document.getElementById("settingsDeleteProjectBtn");
 const settingsModalStatus = document.getElementById("settingsModalStatus");
 const settingsImportInput = document.getElementById("settingsImportInput");
+const libraryModal = document.getElementById("libraryModal");
+const libraryModalCloseBtn = document.getElementById("libraryModalCloseBtn");
+const settingsProjectNameInput = document.getElementById("settingsProjectNameInput");
+const settingsProjectSaveBtn = document.getElementById("settingsProjectSaveBtn");
+const settingsProjectNewBtn = document.getElementById("settingsProjectNewBtn");
+const settingsProjectRefreshBtn = document.getElementById("settingsProjectRefreshBtn");
+const settingsProjectsStatus = document.getElementById("settingsProjectsStatus");
+const settingsProjectsList = document.getElementById("settingsProjectsList");
 const aiImageModal = document.getElementById("aiImageModal");
 const aiImageModel = document.getElementById("aiImageModel");
 const aiImageAspectRatio = document.getElementById("aiImageAspectRatio");
@@ -225,10 +240,25 @@ const VIEW_PRESETS = {
 const CANVAS_PPI = 300;
 const PUBLICATION_SIZE_PRESETS = {
   custom: null,
-  us_letter_portrait: { widthIn: 8.5, heightIn: 11 },
-  us_letter_landscape: { widthIn: 11, heightIn: 8.5 },
+  a3_portrait: { widthIn: 11.69, heightIn: 16.54 },
   a4_portrait: { widthIn: 8.27, heightIn: 11.69 },
+  a5_portrait: { widthIn: 5.83, heightIn: 8.27 },
+  us_letter_portrait: { widthIn: 8.5, heightIn: 11 },
+  legal_portrait: { widthIn: 8.5, heightIn: 14 },
+  ledger_portrait: { widthIn: 11, heightIn: 17 },
+  us_trade_paperback_portrait: { widthIn: 6, heightIn: 9 },
+  half_letter_portrait: { widthIn: 5.5, heightIn: 8.5 },
+  oversize_magazine_portrait: { widthIn: 9, heightIn: 12 },
+  a3_landscape: { widthIn: 16.54, heightIn: 11.69 },
   a4_landscape: { widthIn: 11.69, heightIn: 8.27 },
+  a5_landscape: { widthIn: 8.27, heightIn: 5.83 },
+  us_letter_landscape: { widthIn: 11, heightIn: 8.5 },
+  legal_landscape: { widthIn: 14, heightIn: 8.5 },
+  ledger_landscape: { widthIn: 17, heightIn: 11 },
+  us_trade_paperback_landscape: { widthIn: 9, heightIn: 6 },
+  half_letter_landscape: { widthIn: 8.5, heightIn: 5.5 },
+  oversize_magazine_landscape: { widthIn: 12, heightIn: 9 },
+  // Legacy aliases retained for backward compatibility with older saved select values.
   tabloid_portrait: { widthIn: 11, heightIn: 17 },
   tabloid_landscape: { widthIn: 17, heightIn: 11 },
 };
@@ -267,7 +297,7 @@ const IONIC_ICON_NAMES = [
 const IONIC_ICON_SET = new Set(IONIC_ICON_NAMES);
 const DEFAULT_TEXT_FONT_FAMILY = "Helvetica, Arial, sans-serif";
 const DEFAULT_AI_IMAGE_MODEL = "recraftv4_pro";
-const AI_IMAGE_PREFS_STORAGE_KEY = "magx.aiImagePrefs.v1";
+const AI_IMAGE_PREFS_STORAGE_KEY = "freehandnx.aiImagePrefs.v1";
 const DEFAULT_AI_IMAGE_SIZE = "3:4";
 const RECRAFT_SIZE_OPTIONS = [
   { size: "1:1", apiSize: "2048x2048", aspectRatio: "1:1", resolution: "2K" },
@@ -286,10 +316,14 @@ const RECRAFT_SIZE_OPTIONS = [
   { size: "9:16", apiSize: "1536x2688", aspectRatio: "9:16", resolution: "2K" },
 ];
 const RECRAFT_SIZE_MAP = new Map(RECRAFT_SIZE_OPTIONS.map((entry) => [entry.size, entry]));
-const CREDITS_STORAGE_KEY = "magx.credits.v1";
-const PROJECTS_STORAGE_KEY = "magx.projects.v1";
-const DEFAULT_PROJECT_NAME = "Untitled MagX Project";
+const CREDITS_STORAGE_KEY = "freehandnx.credits.v1";
+const PROJECTS_STORAGE_KEY = "freehandnx.projects.v1";
+const PROJECT_META_STORAGE_KEY = "freehandnx.activeProject.v1";
+const AUTH_TOKEN_STORAGE_KEY = "darkroomx_auth_token";
+const REFRESH_TOKEN_STORAGE_KEY = "darkroomx_refresh_token";
+const DEFAULT_PROJECT_NAME = "Untitled FreehandNX Project";
 const DEFAULT_CREDITS = 1000;
+const CLOUD_SESSION_REQUEST_SOFT_LIMIT_BYTES = 4_000_000;
 const CANVAS_PAN_MARGIN = 420;
 const DEFAULT_INSERT_TOP = 72;
 const CANVAS_AUTO_EXPAND_PADDING = 120;
@@ -400,6 +434,9 @@ const state = {
   aiImageVariantResults: [],
   aiImageEditTargetId: null,
   projectName: DEFAULT_PROJECT_NAME,
+  currentProjectId: null,
+  currentProjectName: "",
+  projectsLoaded: false,
   credits: DEFAULT_CREDITS,
   isReadOnly: false,
   textDraw: null,
@@ -420,7 +457,49 @@ let isSpacePanPressed = false;
 let lastInspectorFocusSectionId = null;
 
 function setStatus(message) {
-  statusText.textContent = message;
+  if (!statusText) return;
+  const normalized = normalizeStatusMessage(message);
+  statusText.textContent = normalized;
+}
+
+function normalizeStatusMessage(message) {
+  if (message == null) return "";
+
+  if (typeof message === "string") {
+    const trimmed = message.trim();
+    if (!trimmed) return "";
+    if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return normalizeStatusMessage(parsed);
+      } catch {
+        return trimmed;
+      }
+    }
+    return trimmed;
+  }
+
+  if (typeof message === "object") {
+    const statusCode = Number(message?.statusCode || message?.status || 0);
+    const raw =
+      message?.message ||
+      message?.error?.message ||
+      message?.error ||
+      message?.details ||
+      message?.hint ||
+      "";
+    const clean = String(raw || "").trim();
+
+    if (clean) {
+      if (statusCode === 404 && /not[\s_-]*found/i.test(clean)) {
+        return "Requested resource was not found.";
+      }
+      return clean;
+    }
+    return statusCode > 0 ? `Request failed (${statusCode}).` : "Something went wrong.";
+  }
+
+  return String(message);
 }
 
 function normalizeProjectName(value) {
@@ -433,6 +512,9 @@ function setProjectName(name, options = {}) {
   state.projectName = next;
   if (options.syncInput !== false && settingsProjectName) {
     settingsProjectName.value = next;
+  }
+  if (options.syncInput !== false && settingsProjectNameInput) {
+    settingsProjectNameInput.value = next;
   }
 }
 
@@ -633,7 +715,7 @@ function getDefaultInsertPoint(width, height, top = DEFAULT_INSERT_TOP) {
 }
 
 function ensureCanvasHeightForContent(minimumBottom = null) {
-  // MagX pages use fixed sizes; disable legacy vertical auto-expand behavior.
+  // FreehandNX pages use fixed sizes; disable legacy vertical auto-expand behavior.
   return false;
 }
 
@@ -856,6 +938,7 @@ function updateZoomLabel() {
 
 function applyCanvasTransform() {
   designCanvas.style.transform = `scale(${state.zoom})`;
+  designCanvas.style.setProperty("--canvas-zoom", String(state.zoom));
   updateCanvasWorkspaceBounds();
 }
 
@@ -1796,7 +1879,7 @@ function extensionForMimeType(mimeType) {
   return "png";
 }
 
-function downloadImageDataUrl(dataUrl, baseName = "magx-image") {
+function downloadImageDataUrl(dataUrl, baseName = "freehandnx-image") {
   if (!dataUrl) return;
   const mime = parseDataUrlMimeType(dataUrl);
   const ext = extensionForMimeType(mime);
@@ -1836,7 +1919,7 @@ function renderAiImageVariantGrid() {
     downloadBtn.type = "button";
     downloadBtn.innerHTML = '<i data-lucide="download"></i><span>Download</span>';
     downloadBtn.addEventListener("click", () => {
-      downloadImageDataUrl(variant.imageDataUrl, "magx-asset");
+      downloadImageDataUrl(variant.imageDataUrl, "freehandnx-asset");
     });
     actions.appendChild(applyBtn);
     actions.appendChild(downloadBtn);
@@ -1994,10 +2077,344 @@ function closeShareModal() {
   shareModal?.classList.add("hidden");
 }
 
+function closeModalById(modalId) {
+  const id = String(modalId || "").trim();
+  if (!id) return;
+  switch (id) {
+    case "settingsModal":
+      closeSettingsModal();
+      return;
+    case "libraryModal":
+      closeLibraryModal();
+      return;
+    case "creditsModal":
+      closeCreditsModal();
+      return;
+    case "shareModal":
+      closeShareModal();
+      return;
+    case "exportModal":
+      closeExportModal();
+      return;
+    case "clearCanvasModal":
+      closeClearCanvasModal();
+      return;
+    case "aiImageModal":
+      closeAiImageModal();
+      return;
+    case "aiImageEditModal":
+      closeAiImageEditModal();
+      return;
+    case "aiModal":
+      closeAiModal();
+      return;
+    default:
+      break;
+  }
+  const modal = document.getElementById(id);
+  if (!modal) return;
+  if (modal.classList.contains("bf-modal")) modal.classList.add("hidden");
+  else modal.classList.add("hidden-panel");
+}
+
 function setSettingsModalStatus(message, isError = false) {
   if (!settingsModalStatus) return;
   settingsModalStatus.textContent = String(message || "");
   settingsModalStatus.classList.toggle("is-error", Boolean(isError && message));
+}
+
+function getAuthToken() {
+  try {
+    return String(window.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY) || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+function getRefreshToken() {
+  try {
+    return String(window.localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY) || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+async function authFetch(url, options = {}) {
+  const token = getAuthToken();
+  const headers = {
+    ...(options.headers || {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+  return fetch(url, { ...options, headers });
+}
+
+function sanitizeProjectName(name) {
+  const raw = String(name || "").trim().replace(/\s+/g, " ");
+  return raw.slice(0, 120);
+}
+
+function persistCurrentProjectMeta(project) {
+  const projectId = String(project?.id || "").trim();
+  const projectName = sanitizeProjectName(project?.name || "");
+  state.currentProjectId = projectId || null;
+  state.currentProjectName = projectName;
+  if (settingsProjectNameInput) settingsProjectNameInput.value = projectName || state.projectName || "";
+  try {
+    if (!projectId) {
+      window.localStorage.removeItem(PROJECT_META_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(
+      PROJECT_META_STORAGE_KEY,
+      JSON.stringify({
+        id: projectId,
+        name: projectName,
+      })
+    );
+  } catch {
+    // Ignore storage write errors.
+  }
+}
+
+function loadStoredProjectMeta() {
+  try {
+    const raw = window.localStorage.getItem(PROJECT_META_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    const projectId = String(parsed?.id || "").trim();
+    const projectName = sanitizeProjectName(parsed?.name || "");
+    if (!projectId) return;
+    state.currentProjectId = projectId;
+    state.currentProjectName = projectName;
+    if (settingsProjectNameInput && projectName) {
+      settingsProjectNameInput.value = projectName;
+    }
+  } catch {
+    // Ignore corrupted metadata.
+  }
+}
+
+function setSettingsProjectsStatus(message = "") {
+  if (!settingsProjectsStatus) return;
+  settingsProjectsStatus.textContent = String(message || "");
+}
+
+function formatProjectDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+}
+
+function getProjectCoverFromPayload(payload) {
+  const pages = Array.isArray(payload?.pages) ? payload.pages : [];
+  for (const page of pages) {
+    const views = page?.viewStates && typeof page.viewStates === "object" ? page.viewStates : {};
+    for (const key of ["desktop", "tablet", "mobile"]) {
+      const elements = Array.isArray(views[key]?.elements) ? views[key].elements : [];
+      const image = elements.find((el) => el?.type === "image" && typeof el?.src === "string" && el.src);
+      if (image?.src) return image.src;
+    }
+  }
+  return "";
+}
+
+function renderSettingsProjects(projects = []) {
+  if (!settingsProjectsList) return;
+  settingsProjectsList.innerHTML = "";
+
+  if (!Array.isArray(projects) || projects.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "settings-projects-meta";
+    empty.textContent = "No projects yet.";
+    settingsProjectsList.appendChild(empty);
+    return;
+  }
+
+  projects.forEach((project) => {
+    const item = document.createElement("article");
+    item.className = "settings-projects-item";
+    if (state.currentProjectId === project.id) item.classList.add("is-current");
+
+    const thumb = document.createElement("div");
+    thumb.className = "settings-projects-thumb";
+    if (project?.coverImageUrl) {
+      thumb.style.backgroundImage = `url('${project.coverImageUrl}')`;
+    }
+
+    const head = document.createElement("div");
+    head.className = "settings-projects-item-head";
+
+    const name = document.createElement("div");
+    name.className = "settings-projects-name";
+    name.textContent = project.name || "Untitled Session";
+
+    const currentBadge = document.createElement("span");
+    currentBadge.className = "settings-projects-current";
+    currentBadge.textContent = "Current";
+    currentBadge.hidden = state.currentProjectId !== project.id;
+
+    const meta = document.createElement("div");
+    meta.className = "settings-projects-meta";
+    const stamp = formatProjectDate(project.lastOpenedAt || project.updatedAt || project.createdAt);
+    meta.textContent = stamp ? `Last opened ${stamp}` : "No save timestamp";
+
+    const openBtn = document.createElement("button");
+    openBtn.type = "button";
+    openBtn.className = "settings-projects-open";
+    openBtn.textContent = state.currentProjectId === project.id ? "Open (Current)" : "Open";
+
+    const openProject = async () => {
+      openBtn.disabled = true;
+      try {
+        setSettingsProjectsStatus(`Opening ${project.name || "project"}...`);
+        const response = await authFetch(`/api/projects/${encodeURIComponent(project.id)}/session`, { method: "GET" });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload?.error || "Unable to open project.");
+        }
+        const session = payload?.session;
+        if (session && typeof session === "object") {
+          const snapshot = normalizeIncomingProjectPayload(session);
+          applySnapshot(snapshot);
+          state.undoStack = [];
+          state.redoStack = [];
+          updateHistoryButtons();
+        }
+        persistCurrentProjectMeta({ id: project.id, name: project.name || "" });
+        setProjectName(project.name || state.projectName || DEFAULT_PROJECT_NAME);
+        setSettingsProjectsStatus(`Opened ${project.name || "project"}.`);
+        await refreshProjectsFromCloud();
+      } catch (error) {
+        setSettingsProjectsStatus(error?.message || "Unable to open project.");
+      } finally {
+        openBtn.disabled = false;
+      }
+    };
+
+    openBtn.addEventListener("click", openProject);
+    item.addEventListener("click", (event) => {
+      if (event.target instanceof Element && event.target.closest("button")) return;
+      void openProject();
+    });
+
+    item.appendChild(thumb);
+    head.appendChild(name);
+    head.appendChild(currentBadge);
+    head.appendChild(openBtn);
+    item.appendChild(head);
+    item.appendChild(meta);
+    settingsProjectsList.appendChild(item);
+  });
+}
+
+async function refreshProjectsFromCloud() {
+  const response = await authFetch("/api/projects", { method: "GET" });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.error || "Unable to load projects.");
+  }
+  const projects = Array.isArray(payload?.projects) ? payload.projects : [];
+  renderSettingsProjects(projects);
+  state.projectsLoaded = true;
+  if (!state.currentProjectId && projects[0]) {
+    persistCurrentProjectMeta({ id: projects[0].id, name: projects[0].name || "" });
+  }
+}
+
+async function ensureProjectForSave() {
+  if (state.currentProjectId) {
+    return {
+      id: state.currentProjectId,
+      name: state.currentProjectName || sanitizeProjectName(settingsProjectNameInput?.value || state.projectName || ""),
+    };
+  }
+  const fallbackName = `Session ${new Date().toISOString().slice(0, 10)}`;
+  const name = sanitizeProjectName(settingsProjectNameInput?.value || state.projectName || fallbackName) || fallbackName;
+  const response = await authFetch("/api/projects", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.error || "Unable to create project.");
+  }
+  const project = payload?.project || {};
+  persistCurrentProjectMeta({ id: project.id || "", name: project.name || name });
+  return { id: String(project.id || ""), name: String(project.name || name) };
+}
+
+async function saveCurrentSessionToCloudProject() {
+  const ensured = await ensureProjectForSave();
+  if (!ensured?.id) return;
+  const payload = buildProjectPayload();
+  const coverImageUrl = getProjectCoverFromPayload(payload);
+  const requestBody = JSON.stringify({
+    name: sanitizeProjectName(settingsProjectNameInput?.value || ensured.name || state.projectName || "") || ensured.name,
+    coverImageUrl,
+    session: payload,
+  });
+  if (new Blob([requestBody]).size > CLOUD_SESSION_REQUEST_SOFT_LIMIT_BYTES) {
+    throw new Error("Project is too large to save right now.");
+  }
+  const response = await authFetch(`/api/projects/${encodeURIComponent(ensured.id)}/session`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: requestBody,
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(result?.error || "Unable to save project.");
+  }
+  const projectName = sanitizeProjectName(settingsProjectNameInput?.value || ensured.name || state.projectName || "");
+  persistCurrentProjectMeta({ id: ensured.id, name: projectName || ensured.name });
+  setProjectName(projectName || ensured.name);
+  setSettingsProjectsStatus(`Saved ${projectName || ensured.name || "project"}.`);
+  await refreshProjectsFromCloud();
+}
+
+async function createFreshCloudProject() {
+  const fallbackName = `Session ${new Date().toISOString().slice(0, 10)}`;
+  const name = sanitizeProjectName(settingsProjectNameInput?.value || fallbackName) || fallbackName;
+  const response = await authFetch("/api/projects", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.error || "Unable to create project.");
+  }
+  clearCurrentCanvasView();
+  const project = payload?.project || {};
+  persistCurrentProjectMeta({ id: project.id || "", name: project.name || name });
+  setProjectName(project.name || name);
+  setSettingsProjectsStatus(`Created ${project.name || name}.`);
+  await refreshProjectsFromCloud();
+}
+
+async function openLibraryModal() {
+  if (!libraryModal) return;
+  closeSettingsModal();
+  libraryModal.classList.remove("hidden-panel");
+  if (settingsProjectNameInput) {
+    settingsProjectNameInput.value = state.currentProjectName || state.projectName || DEFAULT_PROJECT_NAME;
+  }
+  setSettingsProjectsStatus("Loading projects...");
+  try {
+    await refreshProjectsFromCloud();
+    if (!settingsProjectsStatus?.textContent) setSettingsProjectsStatus("");
+  } catch (error) {
+    setSettingsProjectsStatus(error?.message || "Unable to load projects.");
+  }
+  window.requestAnimationFrame(() => {
+    settingsProjectNameInput?.focus();
+  });
+}
+
+function closeLibraryModal() {
+  libraryModal?.classList.add("hidden-panel");
 }
 
 function readStoredProjects() {
@@ -2042,8 +2459,6 @@ function renderStoredProjects() {
 }
 
 function openSettingsModal() {
-  setProjectName(state.projectName || DEFAULT_PROJECT_NAME);
-  renderStoredProjects();
   setSettingsModalStatus("");
   settingsModal?.classList.remove("hidden");
 }
@@ -2051,6 +2466,31 @@ function openSettingsModal() {
 function closeSettingsModal() {
   settingsModal?.classList.add("hidden");
   setSettingsModalStatus("");
+}
+
+async function openBillingPortalFromSettings() {
+  const token = getAuthToken();
+  if (!token) {
+    window.location.href = "/signup";
+    return;
+  }
+  const response = await fetch("/api/stripe/billing-portal", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: "{}",
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.error || "Unable to open billing portal.");
+  }
+  const portalUrl = String(payload?.portalUrl || "").trim();
+  if (!portalUrl) {
+    throw new Error("Missing billing portal URL.");
+  }
+  window.location.href = portalUrl;
 }
 
 function saveProjectToLocalLibrary() {
@@ -2187,6 +2627,10 @@ function closeCreditsModal() {
   creditsModal?.classList.add("hidden");
 }
 
+function handleOrderAction() {
+  window.print();
+}
+
 function hasEnoughCredits(cost = 1) {
   return Math.max(0, Math.floor(state.credits || 0)) >= Math.max(1, Math.floor(cost || 1));
 }
@@ -2282,6 +2726,7 @@ function setReadOnlyMode(enabled) {
     closeExportModal();
     closeShareModal();
     closeSettingsModal();
+    closeLibraryModal();
     closeCreditsModal();
     closeAiImageModal();
     closeAiImageEditModal();
@@ -2299,7 +2744,7 @@ function requireEditableStatus() {
 
 function isEditorShellRoute() {
   const path = String(window.location.pathname || "").toLowerCase();
-  return path === "/editor" || path === "/editor.html" || path === "/magx";
+  return path === "/editor" || path === "/editor.html" || path === "/freehandnx";
 }
 
 function removeEditorShareUi() {
@@ -2317,7 +2762,7 @@ function getUtf8ByteLength(value) {
 }
 
 function getOrCreateClientOwnerId() {
-  const storageKey = "magx_owner_id";
+  const storageKey = "freehandnx_owner_id";
   try {
     const existing = String(window.localStorage.getItem(storageKey) || "").trim();
     if (existing) return existing;
@@ -2588,7 +3033,7 @@ async function createShareLink() {
   } catch (error) {
     const message = error?.message || "";
     if (String(message).toLowerCase().includes("failed to fetch")) {
-      throw new Error("Share API is unreachable. Start MagX with `node server.js` and open `/editor` from that server.");
+      throw new Error("Share API is unreachable. Start FreehandNX with `node server.js` and open `/editor` from that server.");
     }
     throw new Error("Could not reach Share API.");
   }
@@ -2598,7 +3043,7 @@ async function createShareLink() {
       throw new Error("Project is too large to generate a share/embed link.");
     }
     if (response.status === 404) {
-      throw new Error("Share API is unavailable on this server. Start MagX via `node server.js`.");
+      throw new Error("Share API is unavailable on this server. Start FreehandNX via `node server.js`.");
     }
     throw new Error(body?.error || "Could not create share link.");
   }
@@ -3133,7 +3578,7 @@ function generateFallbackAiPages(prompt, style, pageCount) {
     let elements = [];
     if ((templateKind + p) % 3 === 0) {
       elements = [
-        { type: "text", x: 84, y: 52, width: 420, height: 48, text: "MagX", fontSize: 28, textColor: accent },
+        { type: "text", x: 84, y: 52, width: 420, height: 48, text: "FreehandNX", fontSize: 28, textColor: accent },
         { type: "text", x: 84, y: 122, width: 660, height: 214, text: heroTitle, fontSize: heroSize, textColor: accent, lineHeight: 1.08 },
         { type: "text", x: 86, y: 338, width: 700, height: 86, text: subline, fontSize: bodySize, textColor: "#4b5563" },
         { type: "shape", shapeKind: "rectangle", x: 86, y: 436, width: 198, height: 56, fill: cta, stroke: cta, strokeWidth: 0, radius: 0 },
@@ -3148,7 +3593,7 @@ function generateFallbackAiPages(prompt, style, pageCount) {
       ];
     } else if ((templateKind + p) % 3 === 1) {
       elements = [
-        { type: "text", x: 84, y: 52, width: 380, height: 46, text: "MagX", fontSize: 26, textColor: accent },
+        { type: "text", x: 84, y: 52, width: 380, height: 46, text: "FreehandNX", fontSize: 26, textColor: accent },
         { type: "text", x: 210, y: 132, width: 860, height: 130, text: heroTitle, fontSize: heroSize, textColor: accent },
         { type: "text", x: 250, y: 272, width: 760, height: 74, text: subline, fontSize: bodySize, textColor: "#4b5563" },
         { type: "shape", shapeKind: "rectangle", x: 450, y: 362, width: 194, height: 54, fill: cta, stroke: cta, strokeWidth: 0, radius: 0 },
@@ -3168,7 +3613,7 @@ function generateFallbackAiPages(prompt, style, pageCount) {
     } else {
       elements = [
         { type: "shape", shapeKind: "rectangle", x: 0, y: 0, width: 1280, height: 84, fill: "#ffffff", stroke: "#e6e8ef", strokeWidth: 1, radius: 0 },
-        { type: "text", x: 82, y: 30, width: 280, height: 34, text: "MagX", fontSize: 28, textColor: accent },
+        { type: "text", x: 82, y: 30, width: 280, height: 34, text: "FreehandNX", fontSize: 28, textColor: accent },
         { type: "text", x: 888, y: 32, width: 330, height: 28, text: "Features   Pricing   Contact", fontSize: 19, textColor: "#556070" },
         { type: "text", x: 84, y: 128, width: 610, height: 122, text: heroTitle, fontSize: heroSize, textColor: accent },
         { type: "text", x: 86, y: 266, width: 590, height: 84, text: subline, fontSize: bodySize, textColor: "#4b5563" },
@@ -3360,7 +3805,7 @@ async function handleAiGenerate() {
     return;
   }
 
-  const style = String(aiStyle?.value || "magx-inspired");
+  const style = String(aiStyle?.value || "freehandnx-inspired");
   const pageCount = clamp(Number(aiPageCount?.value) || 1, 1, 5);
   if (aiGenerateConfirmBtn) aiGenerateConfirmBtn.disabled = true;
   setStatus("Generating pages with AI...");
@@ -4312,7 +4757,14 @@ function renderPageDrawer() {
       } else if (item.type === "shape") {
         layer.style.background = getShapeFillCss(item);
       } else if (item.type === "image") {
-        layer.style.background = "#8f8f8f";
+        const focalX = clamp(Number(item.focalX ?? 50), 0, 100);
+        const focalY = clamp(Number(item.focalY ?? 50), 0, 100);
+        const fit = String(item.imageFit || "cover").toLowerCase();
+        layer.style.backgroundColor = "#8f8f8f";
+        layer.style.backgroundImage = item.src ? `url("${item.src}")` : "none";
+        layer.style.backgroundPosition = `${focalX}% ${focalY}%`;
+        layer.style.backgroundRepeat = "no-repeat";
+        layer.style.backgroundSize = fit === "contain" ? "contain" : "cover";
       } else if (item.type === "icon") {
         layer.style.background = item.iconColor || "#1f1f1f";
       } else {
@@ -5203,7 +5655,7 @@ async function renderCanvasToPdfBlob(canvasState, elements) {
 
 async function exportToPng() {
   const blob = await renderCanvasToPngBlob(state.canvas, state.elements);
-  downloadBlob(blob, `magx-${Date.now()}.png`);
+  downloadBlob(blob, `freehandnx-${Date.now()}.png`);
   setStatus("PNG export completed.");
 }
 
@@ -5337,7 +5789,7 @@ function buildLayerHtml(viewState, options = {}) {
     .join("\n");
 }
 
-function buildExportHtmlForViewStates(viewStates, pageTitle = "MagX Export", options = {}) {
+function buildExportHtmlForViewStates(viewStates, pageTitle = "FreehandNX Export", options = {}) {
   const localViewStates = cloneJson(viewStates);
   ensureInheritedViewsFor(localViewStates);
   const desktop = localViewStates.desktop;
@@ -5405,9 +5857,9 @@ function buildExportHtml(options = {}) {
   persistCurrentPageState();
   const page = state.pages.find((item) => item.id === state.currentPageId);
   if (!page) {
-    return buildExportHtmlForViewStates(state.viewStates, "MagX Export", options);
+    return buildExportHtmlForViewStates(state.viewStates, "FreehandNX Export", options);
   }
-  return buildExportHtmlForViewStates(page.viewStates, `${page.name || "Untitled Page"} - MagX`, options);
+  return buildExportHtmlForViewStates(page.viewStates, `${page.name || "Untitled Page"} - FreehandNX`, options);
 }
 
 function slugifyFileName(value) {
@@ -5499,7 +5951,7 @@ function collectDesignMetadata(entries) {
   });
 
   return {
-    app: "MagX",
+    app: "FreehandNX",
     exportedAt: new Date().toISOString(),
     totals: {
       pages: entries.length,
@@ -5616,7 +6068,7 @@ function addHtmlPackageFilesToZip(zip, entries) {
 
   entries.forEach((entry) => {
     const fileName = `${entry.base}.html`;
-    const html = buildExportHtmlForViewStates(entry.page.viewStates, `${entry.pageName} - MagX`);
+    const html = buildExportHtmlForViewStates(entry.page.viewStates, `${entry.pageName} - FreehandNX`);
     zip.file(fileName, html);
     manifest.push({
       pageId: entry.page.id,
@@ -5657,7 +6109,7 @@ function addHtmlPackageFilesToZip(zip, entries) {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MagX Pages</title>
+  <title>FreehandNX Pages</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 32px; background: #111; color: #e8e8e8; }
     h1 { margin: 0 0 16px; font-size: 24px; }
@@ -5668,15 +6120,15 @@ function addHtmlPackageFilesToZip(zip, entries) {
   </style>
 </head>
 <body>
-  <h1>MagX Export</h1>
+  <h1>FreehandNX Export</h1>
   <ul>
     ${manifest.map((item) => `<li><a href="${escapeHtml(item.file)}">${escapeHtml(item.name || item.file)}</a></li>`).join("\n    ")}
   </ul>
 </body>
 </html>`;
-  const readme = `# MagX Export Package
+  const readme = `# FreehandNX Export Package
 
-This ZIP was exported from **MagX**.
+This ZIP was exported from **FreehandNX**.
 
 ## Included Files
 
@@ -5706,14 +6158,14 @@ ${manifest.map((item, index) => `${index + 1}. ${item.name || `Page ${index + 1}
 
 ---
 
-Generated by MagX on ${new Date().toISOString()}.
+Generated by FreehandNX on ${new Date().toISOString()}.
   `;
   zip.file("index.html", indexHtml);
   zip.file(
     "manifest.json",
     JSON.stringify(
       {
-        app: "MagX",
+        app: "FreehandNX",
         version: 2,
         exportedAt: new Date().toISOString(),
         pages: manifest,
@@ -5774,7 +6226,7 @@ async function exportZipPackage(options = { includePng: true, includeHtml: true,
   }
 
   const blob = await zip.generateAsync({ type: "blob" });
-  downloadBlob(blob, `magx-${Date.now()}.zip`);
+  downloadBlob(blob, `freehandnx-${Date.now()}.zip`);
   const formats = [
     includePng ? "PNG" : null,
     includeHtml ? "HTML" : null,
@@ -5790,12 +6242,12 @@ async function copyHtmlPackage() {
   setStatus("HTML copied to clipboard.");
 }
 
-const PREVIEW_DOWNLOAD_PDF_MESSAGE = "magx-preview-download-pdf";
-const PREVIEW_DOWNLOAD_PDF_RESULT_MESSAGE = "magx-preview-download-pdf-result";
-const PREVIEW_COPY_PREVIEW_LINK_MESSAGE = "magx-preview-copy-preview-link";
-const PREVIEW_COPY_PREVIEW_LINK_RESULT_MESSAGE = "magx-preview-copy-preview-link-result";
-const PREVIEW_COPY_EMBED_MESSAGE = "magx-preview-copy-embed";
-const PREVIEW_COPY_EMBED_RESULT_MESSAGE = "magx-preview-copy-embed-result";
+const PREVIEW_DOWNLOAD_PDF_MESSAGE = "freehandnx-preview-download-pdf";
+const PREVIEW_DOWNLOAD_PDF_RESULT_MESSAGE = "freehandnx-preview-download-pdf-result";
+const PREVIEW_COPY_PREVIEW_LINK_MESSAGE = "freehandnx-preview-copy-preview-link";
+const PREVIEW_COPY_PREVIEW_LINK_RESULT_MESSAGE = "freehandnx-preview-copy-preview-link-result";
+const PREVIEW_COPY_EMBED_MESSAGE = "freehandnx-preview-copy-embed";
+const PREVIEW_COPY_EMBED_RESULT_MESSAGE = "freehandnx-preview-copy-embed-result";
 let activePreviewWindowRef = null;
 let previewMessageListenerBound = false;
 let isPreviewPdfExporting = false;
@@ -5804,7 +6256,7 @@ let aiImageInFlightSafetyTimer = null;
 
 function buildEmbedIframeCode(url) {
   const safeUrl = String(url || "").trim();
-  return `<iframe src="${safeUrl}" style="width:100%;height:900px;border:0;" loading="lazy" title="MagX Embed"></iframe>`;
+  return `<iframe src="${safeUrl}" style="width:100%;height:900px;border:0;" loading="lazy" title="FreehandNX Embed"></iframe>`;
 }
 
 async function copyPreviewEmbedCodeFromEditor() {
@@ -5867,7 +6319,7 @@ async function downloadPreviewPdfFromEditor() {
       pdf.addImage(pngDataUrl, "PNG", 0, 0, width, height);
     }
     const blob = pdf.output("blob");
-    downloadBlob(blob, `magx-${Date.now()}.pdf`);
+    downloadBlob(blob, `freehandnx-${Date.now()}.pdf`);
     setStatus("Preview PDF exported.");
     return { ok: true, message: "PDF exported." };
   } catch (error) {
@@ -5951,7 +6403,7 @@ function buildPageTurnPreviewHtml() {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MagX Preview</title>
+  <title>FreehandNX Preview</title>
   <style>
     :root { color-scheme: dark; }
     * { box-sizing: border-box; }
@@ -6310,7 +6762,7 @@ function buildPageTurnPreviewHtml() {
         alert("Embed code unavailable for this preview.");
         return;
       }
-      const code = '<iframe src="' + url + '" style="width:100%;height:900px;border:0;" loading="lazy" title="MagX Embed"></iframe>';
+      const code = '<iframe src="' + url + '" style="width:100%;height:900px;border:0;" loading="lazy" title="FreehandNX Embed"></iframe>';
       navigator.clipboard.writeText(code).then(() => {
         alert("Embed code copied.");
       }).catch(() => {
@@ -6400,7 +6852,7 @@ function buildPageTurnPreviewHtml() {
         if (embedCodeBtn) embedCodeBtn.disabled = false;
         let code = String(event.data?.embedCode || "").trim();
         if ((!event.data?.ok || !code) && resolveStablePreviewUrl()) {
-          code = '<iframe src="' + resolveStablePreviewUrl() + '" style="width:100%;height:900px;border:0;" loading="lazy" title="MagX Embed"></iframe>';
+          code = '<iframe src="' + resolveStablePreviewUrl() + '" style="width:100%;height:900px;border:0;" loading="lazy" title="FreehandNX Embed"></iframe>';
         }
         if (!code) {
           alert(event.data?.message || "Embed code unavailable.");
@@ -6472,7 +6924,7 @@ function buildProjectPayload() {
   persistCurrentPageState();
   ensureInheritedViewsUpToDate();
   return {
-    app: "MagX",
+    app: "FreehandNX",
     version: 1,
     exportedAt: new Date().toISOString(),
     projectName: state.projectName || DEFAULT_PROJECT_NAME,
@@ -6484,7 +6936,7 @@ function buildProjectPayload() {
 
 function exportJson() {
   const payload = buildProjectPayload();
-  downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" }), `magx-${Date.now()}.json`);
+  downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" }), `freehandnx-${Date.now()}.json`);
   setStatus("Project JSON exported.");
 }
 
@@ -6508,8 +6960,8 @@ async function shareProjectJson() {
       return;
     }
     await navigator.share({
-      title: "MagX Project",
-      text: "Open this MagX project",
+      title: "FreehandNX Project",
+      text: "Open this FreehandNX project",
       url,
     });
     setStatus("Share link sent.");
@@ -6619,7 +7071,32 @@ function bindEvents() {
   });
   exportBtn?.addEventListener("click", openExportModal);
   shareBtn?.addEventListener("click", openShareModal);
+  toolLibraryBtn?.addEventListener("click", () => {
+    void openLibraryModal();
+  });
+  toolPrintBtn?.addEventListener("click", handleOrderAction);
+  topbarOrderBtn?.addEventListener("click", handleOrderAction);
+  topbarBuyCreditsBtn?.addEventListener("click", openCreditsModal);
   settingsBtn?.addEventListener("click", openSettingsModal);
+  settingsManageBtn?.addEventListener("click", async () => {
+    try {
+      settingsManageBtn.disabled = true;
+      setSettingsModalStatus("Opening billing portal...");
+      await openBillingPortalFromSettings();
+    } catch (error) {
+      setSettingsModalStatus(error?.message || "Unable to open billing portal.", true);
+    } finally {
+      settingsManageBtn.disabled = false;
+    }
+  });
+  settingsCreditsBtn?.addEventListener("click", () => {
+    closeSettingsModal();
+    openCreditsModal();
+  });
+  settingsHelpLink?.addEventListener("click", (event) => {
+    event.preventDefault();
+    window.open("/help", "_blank", "noopener,noreferrer");
+  });
   exportModalCancelBtn?.addEventListener("click", closeExportModal);
   exportModalConfirmBtn?.addEventListener("click", async () => {
     const includePng = Boolean(exportFormatPng?.checked);
@@ -6705,6 +7182,47 @@ function bindEvents() {
   settingsProjectName?.addEventListener("change", () => {
     setProjectName(settingsProjectName.value, { syncInput: true });
   });
+  settingsProjectNameInput?.addEventListener("change", () => {
+    const next = sanitizeProjectName(settingsProjectNameInput.value || state.projectName || DEFAULT_PROJECT_NAME);
+    if (next) {
+      setProjectName(next, { syncInput: true });
+      settingsProjectNameInput.value = next;
+    }
+  });
+  settingsProjectRefreshBtn?.addEventListener("click", async () => {
+    settingsProjectRefreshBtn.disabled = true;
+    setSettingsProjectsStatus("Refreshing...");
+    try {
+      await refreshProjectsFromCloud();
+      setSettingsProjectsStatus("Projects refreshed.");
+    } catch (error) {
+      setSettingsProjectsStatus(error?.message || "Unable to refresh projects.");
+    } finally {
+      settingsProjectRefreshBtn.disabled = false;
+    }
+  });
+  settingsProjectSaveBtn?.addEventListener("click", async () => {
+    settingsProjectSaveBtn.disabled = true;
+    setSettingsProjectsStatus("Saving project...");
+    try {
+      await saveCurrentSessionToCloudProject();
+    } catch (error) {
+      setSettingsProjectsStatus(error?.message || "Unable to save project.");
+    } finally {
+      settingsProjectSaveBtn.disabled = false;
+    }
+  });
+  settingsProjectNewBtn?.addEventListener("click", async () => {
+    settingsProjectNewBtn.disabled = true;
+    setSettingsProjectsStatus("Creating new project...");
+    try {
+      await createFreshCloudProject();
+    } catch (error) {
+      setSettingsProjectsStatus(error?.message || "Unable to create project.");
+    } finally {
+      settingsProjectNewBtn.disabled = false;
+    }
+  });
   creditsBtn?.addEventListener("click", () => {
     if (Math.max(0, Math.floor(state.credits || 0)) <= 0) {
       openCreditsModal();
@@ -6766,6 +7284,25 @@ function bindEvents() {
       closeSettingsModal();
     }
   });
+  document.addEventListener("click", (event) => {
+    const trigger = event.target?.closest?.("[data-close-modal]");
+    if (!trigger) return;
+    const targetModalId = trigger.getAttribute("data-close-modal");
+    closeModalById(targetModalId);
+  });
+  libraryModalCloseBtn?.addEventListener("click", closeLibraryModal);
+  libraryModal?.addEventListener("pointerdown", (event) => {
+    if (event.target === libraryModal) {
+      closeLibraryModal();
+    }
+  });
+  libraryModal?.addEventListener("keydown", (event) => {
+    if (libraryModal.classList.contains("hidden-panel")) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeLibraryModal();
+    }
+  });
   aiImageEditPrompt?.addEventListener("keydown", (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
       event.preventDefault();
@@ -6778,7 +7315,7 @@ function bindEvents() {
       setStatus("Select an image to download.");
       return;
     }
-    downloadImageDataUrl(selected.src, "magx-asset");
+    downloadImageDataUrl(selected.src, "freehandnx-asset");
   });
   propImageVersionPrevBtn?.addEventListener("click", () =>
     runWithHistory(() => {
@@ -7842,6 +8379,7 @@ function bindEvents() {
 
 async function init() {
   loadCredits();
+  loadStoredProjectMeta();
   loadAiImagePrefs();
   removeEditorShareUi();
   populateIconControls();

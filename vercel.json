@@ -40,7 +40,7 @@
       "dest": "/index.html"
     },
     {
-      "src": "/(magx|editor)",
+      "src": "/(freehandnx|editor)",
       "dest": "/editor.html"
     },
     {

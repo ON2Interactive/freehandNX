@@ -1,7 +1,7 @@
-# MagX Technical Architecture (Phase Plan)
+# FreehandNX Technical Architecture (Phase Plan)
 
 ## Architecture Goals
-- Keep editor workflow stable while introducing MagX capabilities in layers.
+- Keep editor workflow stable while introducing FreehandNX capabilities in layers.
 - Decouple content model from render/output modes.
 - Allow future outputs (static, print, physical production) from same source data.
 
@@ -64,7 +64,7 @@
 
 ## Compatibility Strategy
 - Add schema versioning from start.
-- Include migration path for existing MagX data shape.
+- Include migration path for existing FreehandNX data shape.
 - Keep adapter layer between current editor state and new canonical schema.
 
 ## Performance Strategy (MVP-Aware)
