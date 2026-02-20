@@ -2309,9 +2309,19 @@ function renderSettingsProjects(projects = []) {
 }
 
 async function refreshProjectsFromCloud() {
+  const token = getAuthToken();
+  if (!token) {
+    renderSettingsProjects([]);
+    state.projectsLoaded = false;
+    setSettingsProjectsStatus("Sign in to sync projects.");
+    return [];
+  }
   const response = await authFetch("/api/projects", { method: "GET" });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error("Sign in to sync projects.");
+    }
     throw new Error(payload?.error || "Unable to load projects.");
   }
   const projects = Array.isArray(payload?.projects) ? payload.projects : [];
@@ -2323,6 +2333,11 @@ async function refreshProjectsFromCloud() {
 }
 
 async function ensureProjectForSave() {
+  const token = getAuthToken();
+  if (!token) {
+    window.location.href = "/signup";
+    throw new Error("Sign in to save projects.");
+  }
   if (state.currentProjectId) {
     return {
       id: state.currentProjectId,
@@ -2346,6 +2361,11 @@ async function ensureProjectForSave() {
 }
 
 async function saveCurrentSessionToCloudProject() {
+  const token = getAuthToken();
+  if (!token) {
+    window.location.href = "/signup";
+    throw new Error("Sign in to save projects.");
+  }
   const ensured = await ensureProjectForSave();
   if (!ensured?.id) return;
   const payload = buildProjectPayload();
@@ -2375,6 +2395,11 @@ async function saveCurrentSessionToCloudProject() {
 }
 
 async function createFreshCloudProject() {
+  const token = getAuthToken();
+  if (!token) {
+    window.location.href = "/signup";
+    throw new Error("Sign in to create projects.");
+  }
   const fallbackName = `Session ${new Date().toISOString().slice(0, 10)}`;
   const name = sanitizeProjectName(settingsProjectNameInput?.value || fallbackName) || fallbackName;
   const response = await authFetch("/api/projects", {
