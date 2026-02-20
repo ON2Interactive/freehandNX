@@ -2196,7 +2196,12 @@ function loadStoredProjectMeta() {
 
 function setSettingsProjectsStatus(message = "") {
   if (!settingsProjectsStatus) return;
-  settingsProjectsStatus.textContent = String(message || "");
+  const raw = String(message || "");
+  if (/missing bearer token/i.test(raw)) {
+    settingsProjectsStatus.textContent = "Sign in to sync projects.";
+    return;
+  }
+  settingsProjectsStatus.textContent = raw;
 }
 
 function formatProjectDate(value) {
@@ -8430,6 +8435,16 @@ async function init() {
   state.redoStack = [];
   updateHistoryButtons();
   hydrateIcons();
+  if (!(window.lucide && typeof window.lucide.createIcons === "function")) {
+    let attempts = 0;
+    const hydrateWhenReady = setInterval(() => {
+      attempts += 1;
+      hydrateIcons();
+      if ((window.lucide && typeof window.lucide.createIcons === "function") || attempts >= 24) {
+        clearInterval(hydrateWhenReady);
+      }
+    }, 250);
+  }
   try {
     const loaded = await loadSharedProjectFromUrlIfPresent();
     if (!loaded) {
