@@ -119,11 +119,6 @@ function buildRequestOrigin(req) {
   const explicitOrigin = normalizeAbsoluteOrigin(PUBLIC_APP_ORIGIN);
   if (explicitOrigin) return explicitOrigin;
   const hostHeader = String(req.headers.host || `127.0.0.1:${PORT}`);
-  const host = hostHeader.replace(/:\d+$/, "");
-  if (/-projects\.vercel\.app$/i.test(host)) {
-    // Force canonical app host for share links generated from protected Vercel preview hosts.
-    return "https://mag-x.vercel.app";
-  }
   const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
   const proto = forwardedProto || "http";
   return `${proto}://${hostHeader}`;
