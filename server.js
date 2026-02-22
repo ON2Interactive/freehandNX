@@ -66,8 +66,12 @@ const adminSessions = new Map();
 const SENDGRID_API_KEY = cleanEnvValue(process.env.SENDGRID_API_KEY || "");
 const MAIL_FROM_EMAIL = cleanEnvValue(process.env.CONTACT_FROM_EMAIL || process.env.MAIL_FROM_EMAIL || "");
 const MAIL_FROM_NAME = cleanEnvValue(process.env.MAIL_FROM_NAME || "FreehandNX");
-const SIGNUP_NOTIFY_EMAIL = cleanEnvValue(process.env.SIGNUP_NOTIFY_EMAIL || process.env.CONTACT_TO_EMAIL || "support@freehandnx.com");
-const CREDITS_NOTIFY_EMAIL = cleanEnvValue(process.env.CREDITS_NOTIFY_EMAIL || SIGNUP_NOTIFY_EMAIL || "support@freehandnx.com");
+const CONTACT_TO_EMAIL = cleanEnvValue(process.env.CONTACT_TO_EMAIL || "hello@freehandnx.com");
+const SIGNUP_NOTIFY_EMAIL = cleanEnvValue(process.env.SIGNUP_NOTIFY_EMAIL || CONTACT_TO_EMAIL || "hello@freehandnx.com");
+const CREDITS_NOTIFY_EMAIL = cleanEnvValue(process.env.CREDITS_NOTIFY_EMAIL || SIGNUP_NOTIFY_EMAIL || "hello@freehandnx.com");
+const RECAPTCHA_SITE_KEY = cleanEnvValue(process.env.RECAPTCHA_SITE_KEY || "");
+const RECAPTCHA_SECRET_KEY = cleanEnvValue(process.env.RECAPTCHA_SECRET_KEY || "");
+const RECAPTCHA_MIN_SCORE = Math.max(0, Math.min(1, Number(process.env.RECAPTCHA_MIN_SCORE || "0.3")));
 const STRIPE_SECRET_KEY = cleanEnvValue(process.env.STRIPE_SECRET_KEY || "");
 const STRIPE_WEBHOOK_SECRET = cleanEnvValue(process.env.STRIPE_WEBHOOK_SECRET || "");
 const STRIPE_SUBSCRIPTION_PRICE_ID = cleanEnvValue(process.env.STRIPE_SUBSCRIPTION_PRICE_ID || "");
@@ -969,6 +973,127 @@ async function sendCreditsPurchaseAndNotificationEmail({ userName, userEmail, cr
       textBody: notifyText,
       htmlBody: notifyHtml,
     });
+  }
+}
+
+function getClientIpAddress(req) {
+  const forwarded = String(req.headers["x-forwarded-for"] || "").trim();
+  if (forwarded) return forwarded.split(",")[0].trim();
+  const realIp = String(req.headers["x-real-ip"] || "").trim();
+  if (realIp) return realIp;
+  return String(req.socket?.remoteAddress || "").trim();
+}
+
+async function verifyRecaptchaToken(token, clientIp = "") {
+  if (!RECAPTCHA_SECRET_KEY) {
+    return { ok: true, skipped: true };
+  }
+  const recaptchaToken = String(token || "").trim();
+  if (!recaptchaToken) {
+    return { ok: false, error: "Missing reCAPTCHA token." };
+  }
+  try {
+    const body = new URLSearchParams();
+    body.set("secret", RECAPTCHA_SECRET_KEY);
+    body.set("response", recaptchaToken);
+    if (clientIp) body.set("remoteip", clientIp);
+    const response = await fetch("https://www.google.com/recaptcha/api/siteverify", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: body.toString(),
+    });
+    const payload = await response.json().catch(() => ({}));
+    const success = Boolean(payload?.success);
+    const score = Number(payload?.score);
+    if (!success) {
+      return { ok: false, error: "reCAPTCHA verification failed." };
+    }
+    if (Number.isFinite(score) && score < RECAPTCHA_MIN_SCORE) {
+      return { ok: false, error: "reCAPTCHA score too low." };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Unable to verify reCAPTCHA." };
+  }
+}
+
+function handleRecaptchaSiteKey(req, res) {
+  return sendJson(res, 200, {
+    siteKey: RECAPTCHA_SITE_KEY,
+    action: "contact_submit",
+  });
+}
+
+async function handleContactSubmit(req, res) {
+  if (!SENDGRID_API_KEY || !MAIL_FROM_EMAIL) {
+    return sendJson(res, 500, { error: "Email is not configured. Set SENDGRID_API_KEY and CONTACT_FROM_EMAIL." });
+  }
+  if (!isValidEmailAddress(CONTACT_TO_EMAIL)) {
+    return sendJson(res, 500, { error: "Contact recipient is not configured. Set CONTACT_TO_EMAIL." });
+  }
+  try {
+    const payload = await parseJsonBody(req, { maxBytes: 64 * 1024 });
+    const name = String(payload?.name || "").trim();
+    const email = normalizeEmail(payload?.email || "");
+    const subject = String(payload?.subject || "").trim();
+    const message = String(payload?.message || "").trim();
+    const company = String(payload?.company || "").trim(); // Honeypot
+    const recaptchaToken = String(payload?.recaptchaToken || "").trim();
+
+    if (company) {
+      return sendJson(res, 200, { ok: true });
+    }
+    if (!name || !email || !subject || !message) {
+      return sendJson(res, 400, { error: "All fields are required." });
+    }
+    if (!isValidEmailAddress(email)) {
+      return sendJson(res, 400, { error: "Please provide a valid email address." });
+    }
+    if (name.length > 120 || subject.length > 160 || message.length > 4000) {
+      return sendJson(res, 400, { error: "Input is too long." });
+    }
+
+    const recaptcha = await verifyRecaptchaToken(recaptchaToken, getClientIpAddress(req));
+    if (!recaptcha.ok) {
+      return sendJson(res, 400, { error: recaptcha.error || "Security verification failed." });
+    }
+
+    const isoNow = new Date().toISOString();
+    const subjectLine = `FreehandNX Contact: ${subject}`;
+    const textBody = [
+      "New message from freehandnx.com/contact",
+      "",
+      `Name: ${name}`,
+      `Email: ${email}`,
+      `Sent: ${isoNow}`,
+      "",
+      "Message:",
+      message,
+    ].join("\n");
+    const htmlBody = `
+      <p><strong>New message from freehandnx.com/contact</strong></p>
+      <p><strong>Name:</strong> ${escapeHtml(name)}</p>
+      <p><strong>Email:</strong> ${escapeHtml(email)}</p>
+      <p><strong>Sent:</strong> ${escapeHtml(isoNow)}</p>
+      <p><strong>Message:</strong></p>
+      <p>${escapeHtml(message).replace(/\n/g, "<br />")}</p>
+    `;
+
+    const sendResult = await sendSendgridMail({
+      toEmail: CONTACT_TO_EMAIL,
+      subject: subjectLine,
+      textBody,
+      htmlBody,
+      replyTo: { email, name: name.slice(0, 120) },
+    });
+    if (!sendResult.ok) {
+      return sendJson(res, sendResult.status || 502, { error: sendResult.error || "Failed to send email." });
+    }
+    return sendJson(res, 200, { ok: true });
+  } catch (error) {
+    return sendJson(res, 400, { error: error?.message || "Invalid contact payload." });
   }
 }
 
@@ -3147,6 +3272,16 @@ function requestHandler(req, res) {
 
   if (req.method === "POST" && pathname === "/api/stripe/webhook") {
     handleStripeWebhook(req, res);
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/recaptcha/site-key") {
+    handleRecaptchaSiteKey(req, res);
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/contact") {
+    handleContactSubmit(req, res);
     return;
   }
 
