@@ -2300,6 +2300,18 @@ function getRefreshToken() {
   }
 }
 
+function clearStoredAuthSession() {
+  try {
+    window.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+    window.localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+    window.localStorage.removeItem("darkroomx_auth_expires_at");
+    window.localStorage.removeItem("darkroomx_app_session_started_at");
+    window.localStorage.removeItem("darkroomx_profile");
+  } catch {
+    // Ignore storage cleanup failures.
+  }
+}
+
 async function authFetch(url, options = {}) {
   const token = getAuthToken();
   const headers = {
@@ -2815,6 +2827,29 @@ async function fetchAccessStatus() {
   }
   setAccessState(payload || {});
   return state.access;
+}
+
+async function enforceEditorAuthGate() {
+  const token = getAuthToken();
+  if (!token) {
+    window.location.replace("/signup");
+    return false;
+  }
+  try {
+    const response = await authFetch("/api/access/status", { method: "GET" });
+    if (!response.ok) {
+      clearStoredAuthSession();
+      window.location.replace("/signup");
+      return false;
+    }
+    const payload = await response.json().catch(() => ({}));
+    setAccessState(payload || {});
+    return true;
+  } catch {
+    clearStoredAuthSession();
+    window.location.replace("/signup");
+    return false;
+  }
 }
 
 async function openSubscriptionCheckout() {
@@ -8898,6 +8933,8 @@ function bindEvents() {
 }
 
 async function init() {
+  const isAuthenticated = await enforceEditorAuthGate();
+  if (!isAuthenticated) return;
   loadCredits();
   loadStoredProjectMeta();
   loadAiImagePrefs();
@@ -8937,13 +8974,8 @@ async function init() {
       }
     }, 250);
   }
-  try {
-    await fetchAccessStatus();
-    if (state.access?.trialExpired && !state.access?.subscriptionActive) {
-      openSettingsModal();
-    }
-  } catch (error) {
-    setStatus(error?.message || "Unable to fetch subscription status.");
+  if (state.access?.trialExpired && !state.access?.subscriptionActive) {
+    openSettingsModal();
   }
   try {
     const loaded = await loadSharedProjectFromUrlIfPresent();
