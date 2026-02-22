@@ -1350,6 +1350,8 @@ function handleAuthGoogleStart(req, res) {
   const authorizeUrl = new URL("/auth/v1/authorize", SUPABASE_URL);
   authorizeUrl.searchParams.set("provider", "google");
   authorizeUrl.searchParams.set("redirect_to", redirectTo);
+  // Always show Google account chooser instead of silently reusing an active session.
+  authorizeUrl.searchParams.set("prompt", "select_account");
   res.writeHead(302, {
     Location: authorizeUrl.toString(),
     "Cache-Control": "no-store",
