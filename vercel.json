@@ -72,6 +72,14 @@
       "dest": "/auth-callback.html"
     },
     {
+      "src": "/adminlogin",
+      "dest": "/adminlogin.html"
+    },
+    {
+      "src": "/admin",
+      "dest": "/admin.html"
+    },
+    {
       "src": "/(pricing|faqs|help|contact|terms|privacy)",
       "dest": "/$1.html"
     },
