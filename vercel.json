@@ -28,6 +28,10 @@
     {
       "src": "Logo/**",
       "use": "@vercel/static"
+    },
+    {
+      "src": "PageTurnImages/**",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
