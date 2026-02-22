@@ -259,6 +259,33 @@ body {
   font-weight: 600;
 }
 
+.admin-table-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.admin-table-search,
+.admin-table-sort {
+  height: 36px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(10, 10, 10, 0.52);
+  color: rgba(255, 255, 255, 0.9);
+  padding: 0 10px;
+  font: inherit;
+}
+
+.admin-table-search {
+  width: min(280px, 100%);
+}
+
+.admin-table-sort {
+  min-width: 170px;
+}
+
 .admin-refresh-btn {
   margin-top: 0;
   width: auto;
@@ -475,6 +502,23 @@ body {
 .admin-email-send-btn {
   width: 180px;
   margin-top: 2px;
+}
+
+@media (max-width: 860px) {
+  .admin-table-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .admin-table-controls {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .admin-table-search {
+    width: 100%;
+    max-width: none;
+  }
 }
 
 .landing-nav {
@@ -1173,6 +1217,7 @@ body {
   display: inline-flex;
   align-items: center;
   text-decoration: none;
+  margin-bottom: 40px;
 }
 
 .landing-footer-logo {
@@ -3378,4 +3423,49 @@ body {
     grid-column: 1 / span 2;
     max-height: 260px;
   }
+}
+
+/* Global clean chrome: remove borders/backgrounds from buttons/icon controls app-wide. */
+button,
+.icon-btn,
+.tool-btn,
+.modal-action-btn,
+.modal-text-btn,
+.settings-modal-link,
+.settings-modal-share,
+.library-modal-close,
+.settings-modal-close,
+.landing-pricing-btn,
+.landing-cta-link {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+button:hover:not(:disabled),
+.icon-btn:hover:not(:disabled),
+.tool-btn:hover:not(:disabled),
+.modal-action-btn:hover:not(:disabled),
+.modal-text-btn:hover:not(:disabled),
+.settings-modal-link:hover:not(:disabled),
+.settings-modal-share:hover:not(:disabled),
+.library-modal-close:hover:not(:disabled),
+.settings-modal-close:hover:not(:disabled),
+.landing-pricing-btn:hover,
+.landing-cta-link:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+button:active:not(:disabled),
+.icon-btn:active:not(:disabled),
+.tool-btn:active:not(:disabled),
+.modal-action-btn:active:not(:disabled),
+.modal-text-btn:active:not(:disabled),
+.settings-modal-link:active:not(:disabled),
+.settings-modal-share:active:not(:disabled),
+.library-modal-close:active:not(:disabled),
+.settings-modal-close:active:not(:disabled),
+.landing-pricing-btn:active,
+.landing-cta-link:active {
+  background: rgba(255, 255, 255, 0.12) !important;
 }

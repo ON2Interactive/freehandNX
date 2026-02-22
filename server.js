@@ -58,6 +58,24 @@ const APP_ADMIN_EMAILS = new Set(
     .map((email) => String(email || "").trim().toLowerCase())
     .filter(Boolean)
 );
+const ADMIN_LOGIN_EMAIL = normalizeEmail(cleanEnvValue(process.env.ADMIN_LOGIN_EMAIL || "kipme001@gmail.com"));
+const ADMIN_LOGIN_PASSWORD = cleanEnvValue(process.env.ADMIN_LOGIN_PASSWORD || "FreehandNX@$@$");
+const ADMIN_SESSION_COOKIE_NAME = "freehandnx_admin_session";
+const ADMIN_SESSION_TTL_MS = Math.max(15 * 60 * 1000, Number(process.env.ADMIN_SESSION_TTL_MS || 12 * 60 * 60 * 1000));
+const adminSessions = new Map();
+const SENDGRID_API_KEY = cleanEnvValue(process.env.SENDGRID_API_KEY || "");
+const MAIL_FROM_EMAIL = cleanEnvValue(process.env.CONTACT_FROM_EMAIL || process.env.MAIL_FROM_EMAIL || "");
+const MAIL_FROM_NAME = cleanEnvValue(process.env.MAIL_FROM_NAME || "FreehandNX");
+const SIGNUP_NOTIFY_EMAIL = cleanEnvValue(process.env.SIGNUP_NOTIFY_EMAIL || process.env.CONTACT_TO_EMAIL || "support@freehandnx.com");
+const CREDITS_NOTIFY_EMAIL = cleanEnvValue(process.env.CREDITS_NOTIFY_EMAIL || SIGNUP_NOTIFY_EMAIL || "support@freehandnx.com");
+const STRIPE_SECRET_KEY = cleanEnvValue(process.env.STRIPE_SECRET_KEY || "");
+const STRIPE_WEBHOOK_SECRET = cleanEnvValue(process.env.STRIPE_WEBHOOK_SECRET || "");
+const STRIPE_SUBSCRIPTION_PRICE_ID = cleanEnvValue(process.env.STRIPE_SUBSCRIPTION_PRICE_ID || "");
+const STRIPE_CREDITS_PRICE_ID = cleanEnvValue(process.env.STRIPE_CREDITS_PRICE_ID || "");
+const STRIPE_TOPUP_CREDITS = Math.max(1, Math.floor(Number(process.env.STRIPE_TOPUP_CREDITS || 200)));
+const STRIPE_SUBSCRIPTION_CREDITS = Math.max(1, Math.floor(Number(process.env.STRIPE_SUBSCRIPTION_CREDITS || 200)));
+const TRIAL_WINDOW_HOURS = Math.max(1, Math.floor(Number(process.env.FREEHANDNX_TRIAL_HOURS || 24)));
+const AI_ACTION_CREDITS_COST = Math.max(1, Math.floor(Number(process.env.AI_ACTION_CREDITS_COST || 10)));
 
 const MIME_BY_EXT = {
   ".html": "text/html; charset=utf-8",
@@ -158,6 +176,20 @@ function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function isValidEmailAddress(value) {
+  const email = normalizeEmail(value);
+  if (!email || email.length > 254) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function isAdminEmail(email) {
   return APP_ADMIN_EMAILS.has(normalizeEmail(email));
 }
@@ -203,6 +235,338 @@ function getSupabaseServiceHeaders() {
   };
 }
 
+function parseCookies(req) {
+  const header = String(req.headers.cookie || "");
+  if (!header) return {};
+  return header.split(";").reduce((acc, pair) => {
+    const idx = pair.indexOf("=");
+    if (idx <= 0) return acc;
+    const key = decodeURIComponent(pair.slice(0, idx).trim());
+    const value = decodeURIComponent(pair.slice(idx + 1).trim());
+    if (!key) return acc;
+    acc[key] = value;
+    return acc;
+  }, {});
+}
+
+function getAdminSessionToken(req) {
+  const cookies = parseCookies(req);
+  return String(cookies[ADMIN_SESSION_COOKIE_NAME] || "").trim();
+}
+
+function cleanupAdminSessions() {
+  const now = Date.now();
+  for (const [token, session] of adminSessions.entries()) {
+    if (!session || Number(session.expiresAt) <= now) {
+      adminSessions.delete(token);
+    }
+  }
+}
+
+function createAdminSession(res, email) {
+  cleanupAdminSessions();
+  const token = crypto.randomBytes(24).toString("hex");
+  const expiresAt = Date.now() + ADMIN_SESSION_TTL_MS;
+  adminSessions.set(token, {
+    token,
+    email: normalizeEmail(email),
+    createdAt: Date.now(),
+    expiresAt,
+  });
+  const maxAgeSeconds = Math.floor(ADMIN_SESSION_TTL_MS / 1000);
+  const proto = String(res?.req?.headers?.["x-forwarded-proto"] || "").toLowerCase();
+  const secureAttr = proto.includes("https") ? "; Secure" : "";
+  const cookieValue = `${ADMIN_SESSION_COOKIE_NAME}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}${secureAttr}`;
+  res.setHeader("Set-Cookie", cookieValue);
+}
+
+function clearAdminSession(res, req) {
+  const token = getAdminSessionToken(req);
+  if (token) adminSessions.delete(token);
+  const proto = String(req?.headers?.["x-forwarded-proto"] || "").toLowerCase();
+  const secureAttr = proto.includes("https") ? "; Secure" : "";
+  res.setHeader(
+    "Set-Cookie",
+    `${ADMIN_SESSION_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secureAttr}`
+  );
+}
+
+function getAdminSessionFromRequest(req) {
+  cleanupAdminSessions();
+  const token = getAdminSessionToken(req);
+  if (!token) return null;
+  const session = adminSessions.get(token);
+  if (!session) return null;
+  if (Number(session.expiresAt) <= Date.now()) {
+    adminSessions.delete(token);
+    return null;
+  }
+  return session;
+}
+
+function requireAdminSession(req, res) {
+  const session = getAdminSessionFromRequest(req);
+  if (!session) {
+    sendJson(res, 401, { error: "Admin authentication required." });
+    return null;
+  }
+  return session;
+}
+
+async function handleAdminLogin(req, res) {
+  try {
+    const body = await parseJsonBody(req);
+    const email = normalizeEmail(body?.email || "");
+    const password = String(body?.password || "");
+    if (!email || !password) {
+      return sendJson(res, 400, { error: "Email and password are required." });
+    }
+    if (email !== ADMIN_LOGIN_EMAIL || password !== ADMIN_LOGIN_PASSWORD) {
+      return sendJson(res, 401, { error: "Invalid admin credentials." });
+    }
+    createAdminSession(res, email);
+    return sendJson(res, 200, { ok: true, redirectTo: "/admin" });
+  } catch (error) {
+    return sendJson(res, 400, { error: error?.message || "Invalid login request." });
+  }
+}
+
+function handleAdminSession(req, res) {
+  const session = getAdminSessionFromRequest(req);
+  if (!session) return sendJson(res, 401, { ok: false, error: "Not authenticated." });
+  return sendJson(res, 200, {
+    ok: true,
+    email: session.email,
+    expiresAt: session.expiresAt,
+  });
+}
+
+function handleAdminLogout(req, res) {
+  clearAdminSession(res, req);
+  return sendJson(res, 200, { ok: true });
+}
+
+async function handleAdminUsersList(req, res) {
+  const session = requireAdminSession(req, res);
+  if (!session) return;
+  const service = getSupabaseServiceHeaders();
+  if (!service.ok) return sendJson(res, 500, { error: service.error });
+  const { config, headers } = service;
+  const response = await fetch(
+    `${config.url}/rest/v1/profiles?select=id,email,username,credits_balance,last_sign_in_at,created_at,updated_at&order=created_at.desc&limit=500`,
+    {
+      method: "GET",
+      headers,
+    }
+  );
+  if (!response.ok) {
+    const reason = await response.text().catch(() => "");
+    return sendJson(res, 502, { error: `Unable to load admin users.${reason ? ` ${reason}` : ""}` });
+  }
+  const rows = await response.json().catch(() => []);
+  const users = Array.isArray(rows)
+    ? rows.map((row) => ({
+        id: String(row?.id || ""),
+        email: String(row?.email || ""),
+        username: String(row?.username || ""),
+        creditsBalance: Number(row?.credits_balance || 0),
+        lastSignInAt: row?.last_sign_in_at || null,
+        createdAt: row?.created_at || null,
+        updatedAt: row?.updated_at || null,
+      }))
+    : [];
+  return sendJson(res, 200, { users });
+}
+
+async function handleAdminUserUpdate(req, res, userId) {
+  const session = requireAdminSession(req, res);
+  if (!session) return;
+  if (!isLikelyUuid(userId)) return sendJson(res, 400, { error: "Invalid user id." });
+  const service = getSupabaseServiceHeaders();
+  if (!service.ok) return sendJson(res, 500, { error: service.error });
+  try {
+    const payload = await parseJsonBody(req);
+    const nextUsername = String(payload?.username || "")
+      .trim()
+      .replace(/\s+/g, " ")
+      .slice(0, 80);
+    const hasCredits = payload?.creditsBalance != null && payload?.creditsBalance !== "";
+    const parsedCredits = Number(payload?.creditsBalance);
+    const updatePayload = {};
+    if (nextUsername) updatePayload.username = nextUsername;
+    if (hasCredits) {
+      if (!Number.isFinite(parsedCredits)) {
+        return sendJson(res, 400, { error: "Credits value is invalid." });
+      }
+      updatePayload.credits_balance = Math.max(0, Math.round(parsedCredits));
+    }
+
+    const { config, headers } = service;
+    const profileReadResponse = await fetch(
+      `${config.url}/rest/v1/profiles?select=id,email,username,credits_balance,last_sign_in_at,created_at,updated_at&id=eq.${encodeURIComponent(userId)}&limit=1`,
+      {
+        method: "GET",
+        headers,
+      }
+    );
+    if (!profileReadResponse.ok) {
+      const reason = await profileReadResponse.text().catch(() => "");
+      return sendJson(res, 502, { error: `Unable to read user.${reason ? ` ${reason}` : ""}` });
+    }
+    const profileRows = await profileReadResponse.json().catch(() => []);
+    const profile = Array.isArray(profileRows) ? profileRows[0] : null;
+    if (!profile) return sendJson(res, 404, { error: "User not found." });
+
+    const currentCredits = Math.max(0, Math.round(Number(profile?.credits_balance || 0)));
+    if (!nextUsername || nextUsername === String(profile?.username || "").trim()) delete updatePayload.username;
+    if (hasCredits && updatePayload.credits_balance === currentCredits) delete updatePayload.credits_balance;
+
+    if (!Object.keys(updatePayload).length) {
+      return sendJson(res, 200, {
+        ok: true,
+        user: {
+          id: String(profile?.id || ""),
+          email: String(profile?.email || ""),
+          username: String(profile?.username || ""),
+          creditsBalance: currentCredits,
+          lastSignInAt: profile?.last_sign_in_at || null,
+          createdAt: profile?.created_at || null,
+          updatedAt: profile?.updated_at || null,
+        },
+      });
+    }
+
+    const response = await fetch(
+      `${config.url}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`,
+      {
+        method: "PATCH",
+        headers: {
+          ...headers,
+          Prefer: "return=representation",
+        },
+        body: JSON.stringify(updatePayload),
+      }
+    );
+    if (!response.ok) {
+      const reason = await response.text().catch(() => "");
+      return sendJson(res, 502, { error: `Unable to update user.${reason ? ` ${reason}` : ""}` });
+    }
+    const rows = await response.json().catch(() => []);
+    const row = Array.isArray(rows) ? rows[0] : null;
+    if (!row) return sendJson(res, 404, { error: "User not found." });
+    const nextCredits = Math.max(0, Math.round(Number(row?.credits_balance || 0)));
+    if (nextCredits > currentCredits) {
+      sendCreditsPurchaseAndNotificationEmail({
+        userName: String(row?.username || "").trim() || String(row?.email || "").trim(),
+        userEmail: String(row?.email || "").trim(),
+        creditsAdded: nextCredits - currentCredits,
+        previousCredits: currentCredits,
+        nextCredits,
+      }).catch((error) => {
+        console.error("Credits purchase email failed:", error?.message || error);
+      });
+    }
+    return sendJson(res, 200, {
+      ok: true,
+      user: {
+        id: String(row?.id || ""),
+        email: String(row?.email || ""),
+        username: String(row?.username || ""),
+        creditsBalance: Number(row?.credits_balance || 0),
+        lastSignInAt: row?.last_sign_in_at || null,
+        createdAt: row?.created_at || null,
+        updatedAt: row?.updated_at || null,
+      },
+    });
+  } catch (error) {
+    return sendJson(res, 400, { error: error?.message || "Invalid update payload." });
+  }
+}
+
+async function handleAdminUserDelete(req, res, userId) {
+  const session = requireAdminSession(req, res);
+  if (!session) return;
+  if (!isLikelyUuid(userId)) return sendJson(res, 400, { error: "Invalid user id." });
+  const service = getSupabaseServiceHeaders();
+  if (!service.ok) return sendJson(res, 500, { error: service.error });
+  const { config, headers } = service;
+  const response = await fetch(`${config.url}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
+    method: "DELETE",
+    headers,
+  });
+  if (!response.ok) {
+    const reason = await response.text().catch(() => "");
+    return sendJson(res, 502, { error: `Unable to delete user.${reason ? ` ${reason}` : ""}` });
+  }
+  return sendJson(res, 200, { ok: true });
+}
+
+async function handleAdminUserEmail(req, res) {
+  const session = requireAdminSession(req, res);
+  if (!session) return;
+  const service = getSupabaseServiceHeaders();
+  if (!service.ok) return sendJson(res, 500, { error: service.error });
+  if (!SENDGRID_API_KEY || !MAIL_FROM_EMAIL) {
+    return sendJson(res, 500, { error: "Email is not configured. Set SENDGRID_API_KEY and CONTACT_FROM_EMAIL." });
+  }
+  try {
+    const payload = await parseJsonBody(req);
+    const userId = String(payload?.userId || "").trim();
+    const toEmailRaw = normalizeEmail(payload?.email || "");
+    const subject = String(payload?.subject || "").trim();
+    const message = String(payload?.message || "").trim();
+    const userName = String(payload?.name || "").trim();
+
+    if (!isLikelyUuid(userId)) return sendJson(res, 400, { error: "Invalid user id." });
+    if (!subject || !message) return sendJson(res, 400, { error: "Subject and message are required." });
+    if (subject.length > 180 || message.length > 8000 || userName.length > 120) {
+      return sendJson(res, 400, { error: "Input is too long." });
+    }
+
+    const { config, headers } = service;
+    const profileResponse = await fetch(
+      `${config.url}/rest/v1/profiles?select=id,email,username&id=eq.${encodeURIComponent(userId)}&limit=1`,
+      {
+        method: "GET",
+        headers,
+      }
+    );
+    if (!profileResponse.ok) {
+      const reason = await profileResponse.text().catch(() => "");
+      return sendJson(res, 502, { error: `Unable to read user profile.${reason ? ` ${reason}` : ""}` });
+    }
+    const profileRows = await profileResponse.json().catch(() => []);
+    const profile = Array.isArray(profileRows) ? profileRows[0] : null;
+    if (!profile) return sendJson(res, 404, { error: "User not found." });
+
+    const profileEmail = normalizeEmail(profile?.email || "");
+    if (!isValidEmailAddress(profileEmail)) return sendJson(res, 400, { error: "User email is invalid." });
+    if (toEmailRaw && toEmailRaw !== profileEmail) {
+      return sendJson(res, 400, { error: "Email must match the selected user." });
+    }
+
+    const safeName = userName || String(profile?.username || "").trim() || "there";
+    const textBody = [`Hi ${safeName},`, "", message, "", "The FreehandNX Team"].join("\n");
+    const htmlBody = `
+      <p>Hi ${escapeHtml(safeName)},</p>
+      <p>${escapeHtml(message).replace(/\n/g, "<br />")}</p>
+      <p>The FreehandNX Team</p>
+    `;
+    const sendResult = await sendSendgridMail({
+      toEmail: profileEmail,
+      subject,
+      textBody,
+      htmlBody,
+    });
+    if (!sendResult.ok) {
+      return sendJson(res, sendResult.status || 502, { error: sendResult.error || "Failed to send email." });
+    }
+    return sendJson(res, 200, { ok: true });
+  } catch (error) {
+    return sendJson(res, 400, { error: error?.message || "Invalid request." });
+  }
+}
+
 function normalizeProfileUsername(email = "") {
   const base = String(email || "")
     .toLowerCase()
@@ -212,20 +576,68 @@ function normalizeProfileUsername(email = "") {
   return (base || "freehandnx_user").slice(0, 32);
 }
 
-async function ensureSupabaseProfileRecord(user) {
+async function ensureSupabaseProfileRecord(user, options = {}) {
   const userId = String(user?.id || "").trim();
   const email = normalizeEmail(user?.email || "");
+  const displayName = String(user?.name || "").trim();
+  const skipWelcomeEmail = Boolean(options?.skipWelcomeEmail);
   if (!isLikelyUuid(userId) || !email) {
     return { ok: false, status: 400, error: "Invalid user profile payload." };
   }
   const service = getSupabaseServiceHeaders();
   if (!service.ok) return { ok: false, status: 500, error: service.error };
   const { config, headers } = service;
+  const existingResponse = await fetch(
+    `${config.url}/rest/v1/profiles?select=id,email,username,credits_balance&id=eq.${encodeURIComponent(userId)}&limit=1`,
+    {
+      method: "GET",
+      headers,
+    }
+  );
+  if (!existingResponse.ok) {
+    const reason = await existingResponse.text().catch(() => "");
+    return {
+      ok: false,
+      status: 502,
+      error: `Unable to read profile record.${reason ? ` ${reason}` : ""}`,
+    };
+  }
+  const existingRows = await existingResponse.json().catch(() => []);
+  const existing = Array.isArray(existingRows) ? existingRows[0] : null;
+  if (existing) {
+    const patchResponse = await fetch(`${config.url}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`, {
+      method: "PATCH",
+      headers: {
+        ...headers,
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({ last_sign_in_at: new Date().toISOString() }),
+    });
+    if (!patchResponse.ok) {
+      const reason = await patchResponse.text().catch(() => "");
+      return {
+        ok: false,
+        status: 502,
+        error: `Unable to update profile sign-in timestamp.${reason ? ` ${reason}` : ""}`,
+      };
+    }
+    return {
+      ok: true,
+      created: false,
+      profile: {
+        id: String(existing?.id || userId),
+        email: normalizeEmail(existing?.email || email),
+        username: String(existing?.username || ""),
+        creditsBalance: Number(existing?.credits_balance || 0),
+      },
+    };
+  }
+
   const response = await fetch(`${config.url}/rest/v1/profiles`, {
     method: "POST",
     headers: {
       ...headers,
-      Prefer: "resolution=merge-duplicates,return=minimal",
+      Prefer: "return=minimal",
     },
     body: JSON.stringify([
       {
@@ -236,8 +648,27 @@ async function ensureSupabaseProfileRecord(user) {
       },
     ]),
   });
-  if (response.ok) return { ok: true };
+  if (response.ok) {
+    if (!skipWelcomeEmail) {
+      sendSignupWelcomeAndNotificationEmail({ userName: displayName || normalizeProfileUsername(email), userEmail: email }).catch((error) => {
+        console.error("Signup welcome email failed:", error?.message || error);
+      });
+    }
+    return {
+      ok: true,
+      created: true,
+      profile: {
+        id: userId,
+        email,
+        username: normalizeProfileUsername(email),
+        creditsBalance: 0,
+      },
+    };
+  }
   const reason = await response.text().catch(() => "");
+  if (response.status === 409) {
+    return { ok: true, created: false };
+  }
   return {
     ok: false,
     status: 502,
@@ -310,7 +741,7 @@ async function ensureDevGuestSupabaseUser() {
     if (!isLikelyUuid(guestUser?.id)) {
       return { ok: false, status: 500, error: "Guest user id is invalid." };
     }
-    const profileReady = await ensureSupabaseProfileRecord(guestUser);
+    const profileReady = await ensureSupabaseProfileRecord(guestUser, { skipWelcomeEmail: true });
     if (!profileReady.ok) return profileReady;
     devGuestUserCache = guestUser;
     return { ok: true, user: guestUser };
@@ -342,6 +773,7 @@ async function getAuthenticatedSupabaseUser(req) {
   const user = {
     id: userId,
     email: String(claims?.email || "").trim().toLowerCase(),
+    name: String(claims?.name || claims?.user_metadata?.full_name || "").trim(),
   };
   const profileReady = await ensureSupabaseProfileRecord(user);
   if (!profileReady.ok) return profileReady;
@@ -380,6 +812,490 @@ function parseJsonBody(req, options = {}) {
   });
 }
 
+async function sendSendgridMail({ toEmail, subject, textBody, htmlBody, replyTo = null }) {
+  if (!SENDGRID_API_KEY || !MAIL_FROM_EMAIL || !isValidEmailAddress(toEmail)) {
+    return { ok: false, status: 500, error: "Email is not configured." };
+  }
+  const payload = {
+    personalizations: [{ to: [{ email: toEmail }], subject: String(subject || "").trim() || "FreehandNX" }],
+    from: { email: MAIL_FROM_EMAIL, name: MAIL_FROM_NAME || "FreehandNX" },
+    ...(replyTo ? { reply_to: replyTo } : {}),
+    content: [
+      { type: "text/plain", value: String(textBody || "") },
+      { type: "text/html", value: String(htmlBody || "") },
+    ],
+  };
+  const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${SENDGRID_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const reason = await response.text().catch(() => "");
+    return { ok: false, status: response.status || 502, error: reason || "Failed to send email." };
+  }
+  return { ok: true };
+}
+
+async function sendSignupWelcomeAndNotificationEmail({ userName, userEmail }) {
+  const targetEmail = normalizeEmail(userEmail);
+  if (!targetEmail || !isValidEmailAddress(targetEmail) || !SENDGRID_API_KEY || !MAIL_FROM_EMAIL) return;
+
+  const safeName = String(userName || "").trim() || "there";
+  const welcomeSubject = "Welcome to FreehandNX";
+  const welcomeText = [
+    `Hi ${safeName},`,
+    "",
+    "Welcome to FreehandNX - we're glad you're here.",
+    "",
+    "FreehandNX is built for creators who need complete layout control without unnecessary complexity. Design posters, photobooks, magazines, and other publication formats in a clean, modern canvas workflow.",
+    "",
+    "Here’s what you can do right away:",
+    "- Start a new publication layout in seconds",
+    "- Use AI Image, Image Edit, and Vector Art tools directly in the editor",
+    "- Build with precise grids, typography, and page-level control",
+    "- Export to HTML, PDF, or images when you are ready",
+    "",
+    "If you have feedback or ideas, reply to this email - we read everything.",
+    "",
+    "Thanks for building with us,",
+    "The FreehandNX Team",
+  ].join("\n");
+  const welcomeHtml = `
+    <p>Hi ${escapeHtml(safeName)},</p>
+    <p>Welcome to FreehandNX - we're glad you're here.</p>
+    <p>FreehandNX is built for creators who need complete layout control without unnecessary complexity. Design posters, photobooks, magazines, and other publication formats in a clean, modern canvas workflow.</p>
+    <p>Here’s what you can do right away:</p>
+    <ul>
+      <li>Start a new publication layout in seconds</li>
+      <li>Use AI Image, Image Edit, and Vector Art tools directly in the editor</li>
+      <li>Build with precise grids, typography, and page-level control</li>
+      <li>Export to HTML, PDF, or images when you are ready</li>
+    </ul>
+    <p>If you have feedback or ideas, reply to this email - we read everything.</p>
+    <p>Thanks for building with us,<br />The FreehandNX Team</p>
+  `;
+
+  const internalSubject = "FreehandNX: New user signup";
+  const internalText = [
+    "A new user signed up for FreehandNX.",
+    "",
+    `Name: ${safeName}`,
+    `Email: ${targetEmail}`,
+    `Signed up at: ${new Date().toISOString()}`,
+  ].join("\n");
+  const internalHtml = `
+    <p>A new user signed up for FreehandNX.</p>
+    <p><strong>Name:</strong> ${escapeHtml(safeName)}</p>
+    <p><strong>Email:</strong> ${escapeHtml(targetEmail)}</p>
+    <p><strong>Signed up at:</strong> ${new Date().toISOString()}</p>
+  `;
+
+  await sendSendgridMail({
+    toEmail: targetEmail,
+    subject: welcomeSubject,
+    textBody: welcomeText,
+    htmlBody: welcomeHtml,
+  });
+
+  if (isValidEmailAddress(SIGNUP_NOTIFY_EMAIL)) {
+    await sendSendgridMail({
+      toEmail: SIGNUP_NOTIFY_EMAIL,
+      subject: internalSubject,
+      textBody: internalText,
+      htmlBody: internalHtml,
+    });
+  }
+}
+
+async function sendCreditsPurchaseAndNotificationEmail({ userName, userEmail, creditsAdded, previousCredits, nextCredits }) {
+  const targetEmail = normalizeEmail(userEmail);
+  const added = Math.max(0, Math.floor(Number(creditsAdded) || 0));
+  if (!targetEmail || !isValidEmailAddress(targetEmail) || !added || !SENDGRID_API_KEY || !MAIL_FROM_EMAIL) return;
+
+  const safeName = String(userName || "").trim() || "there";
+  const prev = Math.max(0, Math.floor(Number(previousCredits) || 0));
+  const next = Math.max(prev + added, Math.floor(Number(nextCredits) || 0));
+  const subject = "FreehandNX credits added";
+  const textBody = [
+    `Hi ${safeName},`,
+    "",
+    `Your FreehandNX account has been credited with ${added} credit${added === 1 ? "" : "s"}.`,
+    `Previous balance: ${prev}`,
+    `Current balance: ${next}`,
+    "",
+    "Thanks for using FreehandNX.",
+  ].join("\n");
+  const htmlBody = `
+    <p>Hi ${escapeHtml(safeName)},</p>
+    <p>Your FreehandNX account has been credited with <strong>${added}</strong> credit${added === 1 ? "" : "s"}.</p>
+    <p><strong>Previous balance:</strong> ${prev}<br /><strong>Current balance:</strong> ${next}</p>
+    <p>Thanks for using FreehandNX.</p>
+  `;
+
+  await sendSendgridMail({
+    toEmail: targetEmail,
+    subject,
+    textBody,
+    htmlBody,
+  });
+
+  if (isValidEmailAddress(CREDITS_NOTIFY_EMAIL)) {
+    const notifyText = [
+      "A FreehandNX user purchased credits.",
+      "",
+      `Name: ${safeName}`,
+      `Email: ${targetEmail}`,
+      `Credits added: ${added}`,
+      `Previous balance: ${prev}`,
+      `New balance: ${next}`,
+      `Time: ${new Date().toISOString()}`,
+    ].join("\n");
+    const notifyHtml = `
+      <p>A FreehandNX user purchased credits.</p>
+      <p><strong>Name:</strong> ${escapeHtml(safeName)}</p>
+      <p><strong>Email:</strong> ${escapeHtml(targetEmail)}</p>
+      <p><strong>Credits added:</strong> ${added}</p>
+      <p><strong>Previous balance:</strong> ${prev}</p>
+      <p><strong>New balance:</strong> ${next}</p>
+      <p><strong>Time:</strong> ${new Date().toISOString()}</p>
+    `;
+    await sendSendgridMail({
+      toEmail: CREDITS_NOTIFY_EMAIL,
+      subject: "FreehandNX: Credits purchase",
+      textBody: notifyText,
+      htmlBody: notifyHtml,
+    });
+  }
+}
+
+function hasStripeConfig() {
+  return Boolean(STRIPE_SECRET_KEY);
+}
+
+async function readRawBody(req, options = {}) {
+  const maxBytes = Math.max(1024, Number(options.maxBytes) || 2 * 1024 * 1024);
+  return await new Promise((resolve, reject) => {
+    const chunks = [];
+    let totalBytes = 0;
+    req.on("data", (chunk) => {
+      chunks.push(chunk);
+      totalBytes += chunk.length;
+      if (totalBytes > maxBytes) {
+        reject(new Error("Request body too large."));
+      }
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+}
+
+function verifyStripeWebhookSignature(rawBody, signatureHeader, webhookSecret) {
+  if (!rawBody || !signatureHeader || !webhookSecret) return false;
+  const parts = String(signatureHeader || "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const timestampPart = parts.find((part) => part.startsWith("t="));
+  const signaturePart = parts.find((part) => part.startsWith("v1="));
+  if (!timestampPart || !signaturePart) return false;
+  const timestamp = timestampPart.slice(2);
+  const received = signaturePart.slice(3);
+  if (!timestamp || !received) return false;
+  const signedPayload = `${timestamp}.${rawBody.toString("utf8")}`;
+  const expected = crypto
+    .createHmac("sha256", webhookSecret)
+    .update(signedPayload, "utf8")
+    .digest("hex");
+  const expectedBuffer = Buffer.from(expected, "utf8");
+  const receivedBuffer = Buffer.from(received, "utf8");
+  if (expectedBuffer.length !== receivedBuffer.length) return false;
+  return crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
+}
+
+function stripeRequest(pathname, options = {}) {
+  const method = String(options.method || "GET").toUpperCase();
+  const query = options.query instanceof URLSearchParams ? options.query : null;
+  const body = options.body instanceof URLSearchParams ? options.body : null;
+  const requestUrl = new URL(`https://api.stripe.com/v1/${String(pathname || "").replace(/^\/+/, "")}`);
+  if (query) {
+    for (const [key, value] of query.entries()) requestUrl.searchParams.append(key, value);
+  }
+  return fetch(requestUrl.toString(), {
+    method,
+    headers: {
+      Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
+      ...(body ? { "Content-Type": "application/x-www-form-urlencoded" } : {}),
+    },
+    ...(body ? { body: body.toString() } : {}),
+  });
+}
+
+async function fetchStripeCustomerByEmail(email) {
+  const target = normalizeEmail(email);
+  if (!target || !hasStripeConfig()) return null;
+  const query = new URLSearchParams();
+  query.set("email", target);
+  query.set("limit", "1");
+  const response = await stripeRequest("/customers", { method: "GET", query });
+  if (!response.ok) return null;
+  const payload = await response.json().catch(() => ({}));
+  const customers = Array.isArray(payload?.data) ? payload.data : [];
+  return customers[0] || null;
+}
+
+async function ensureStripeCustomerForUser({ email, userId, name }) {
+  const targetEmail = normalizeEmail(email);
+  if (!targetEmail || !hasStripeConfig()) return null;
+  const existing = await fetchStripeCustomerByEmail(targetEmail);
+  if (existing?.id) return existing;
+  const body = new URLSearchParams();
+  body.set("email", targetEmail);
+  if (userId) body.set("metadata[user_id]", String(userId));
+  if (name) body.set("name", String(name).slice(0, 120));
+  const response = await stripeRequest("/customers", { method: "POST", body });
+  if (!response.ok) {
+    const reason = await response.text().catch(() => "");
+    throw new Error(reason || "Unable to create Stripe customer.");
+  }
+  return await response.json().catch(() => null);
+}
+
+async function fetchStripeSubscriptionSummary(customerId) {
+  if (!customerId || !hasStripeConfig()) return { subscriptionActive: false, subscriptionStatus: "inactive" };
+  const query = new URLSearchParams();
+  query.set("customer", String(customerId));
+  query.set("status", "all");
+  query.set("limit", "20");
+  const response = await stripeRequest("/subscriptions", { method: "GET", query });
+  if (!response.ok) return { subscriptionActive: false, subscriptionStatus: "inactive" };
+  const payload = await response.json().catch(() => ({}));
+  const subscriptions = Array.isArray(payload?.data) ? payload.data : [];
+  const activeLike = subscriptions.find((sub) => ["active", "trialing", "past_due"].includes(String(sub?.status || "")));
+  if (!activeLike) return { subscriptionActive: false, subscriptionStatus: "inactive" };
+  return {
+    subscriptionActive: true,
+    subscriptionStatus: String(activeLike.status || "active"),
+    subscriptionId: String(activeLike.id || ""),
+  };
+}
+
+async function getProfileByUserId(service, userId) {
+  const { config, headers } = service;
+  const response = await fetch(
+    `${config.url}/rest/v1/profiles?select=id,email,username,credits_balance,created_at&id=eq.${encodeURIComponent(userId)}&limit=1`,
+    {
+      method: "GET",
+      headers,
+    }
+  );
+  if (!response.ok) return null;
+  const rows = await response.json().catch(() => []);
+  return Array.isArray(rows) ? rows[0] : null;
+}
+
+async function getProfileByEmail(service, email) {
+  const target = normalizeEmail(email);
+  if (!target) return null;
+  const { config, headers } = service;
+  const response = await fetch(
+    `${config.url}/rest/v1/profiles?select=id,email,username,credits_balance,created_at&email=eq.${encodeURIComponent(target)}&limit=1`,
+    {
+      method: "GET",
+      headers,
+    }
+  );
+  if (!response.ok) return null;
+  const rows = await response.json().catch(() => []);
+  return Array.isArray(rows) ? rows[0] : null;
+}
+
+async function applyStripeCreditsTopup(service, userId, creditsDelta, sourceToken, meta = {}) {
+  if (!isLikelyUuid(userId)) return { ok: false, status: 400, error: "Invalid user id." };
+  const delta = Math.max(1, Math.floor(Number(creditsDelta) || 0));
+  const { config, headers } = service;
+  const existingResponse = await fetch(
+    `${config.url}/rest/v1/credit_ledger?select=id&user_id=eq.${encodeURIComponent(userId)}&source=eq.${encodeURIComponent(sourceToken)}&limit=1`,
+    {
+      method: "GET",
+      headers,
+    }
+  );
+  if (existingResponse.ok) {
+    const rows = await existingResponse.json().catch(() => []);
+    if (Array.isArray(rows) && rows.length > 0) {
+      const profile = await getProfileByUserId(service, userId);
+      return {
+        ok: true,
+        alreadyApplied: true,
+        previousCredits: Math.max(0, Math.floor(Number(profile?.credits_balance || 0))),
+        nextCredits: Math.max(0, Math.floor(Number(profile?.credits_balance || 0))),
+        profile,
+      };
+    }
+  }
+
+  const profile = await getProfileByUserId(service, userId);
+  if (!profile) return { ok: false, status: 404, error: "User profile not found." };
+  const previousCredits = Math.max(0, Math.floor(Number(profile?.credits_balance || 0)));
+  const nextCredits = previousCredits + delta;
+
+  const ledgerResponse = await fetch(`${config.url}/rest/v1/credit_ledger`, {
+    method: "POST",
+    headers: {
+      ...headers,
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify([
+      {
+        user_id: userId,
+        project_id: null,
+        delta,
+        reason: "stripe_topup",
+        source: sourceToken,
+        meta,
+      },
+    ]),
+  });
+  if (!ledgerResponse.ok) {
+    const reason = await ledgerResponse.text().catch(() => "");
+    return { ok: false, status: 502, error: `Unable to record top-up ledger.${reason ? ` ${reason}` : ""}` };
+  }
+
+  const patchResponse = await fetch(`${config.url}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`, {
+    method: "PATCH",
+    headers: {
+      ...headers,
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify({ credits_balance: nextCredits }),
+  });
+  if (!patchResponse.ok) {
+    const reason = await patchResponse.text().catch(() => "");
+    return { ok: false, status: 502, error: `Unable to apply top-up credits.${reason ? ` ${reason}` : ""}` };
+  }
+  const rows = await patchResponse.json().catch(() => []);
+  const updatedProfile = Array.isArray(rows) ? rows[0] : profile;
+  return {
+    ok: true,
+    previousCredits,
+    nextCredits: Math.max(0, Math.floor(Number(updatedProfile?.credits_balance || nextCredits))),
+    profile: updatedProfile,
+  };
+}
+
+function computeTrialStatus(createdAtValue) {
+  const nowMs = Date.now();
+  const createdAtMs = Date.parse(String(createdAtValue || ""));
+  if (!Number.isFinite(createdAtMs)) {
+    return {
+      trialStartedAt: "",
+      trialEndsAt: "",
+      trialActive: false,
+      trialExpired: true,
+    };
+  }
+  const trialEndsAtMs = createdAtMs + TRIAL_WINDOW_HOURS * 60 * 60 * 1000;
+  return {
+    trialStartedAt: new Date(createdAtMs).toISOString(),
+    trialEndsAt: new Date(trialEndsAtMs).toISOString(),
+    trialActive: nowMs < trialEndsAtMs,
+    trialExpired: nowMs >= trialEndsAtMs,
+  };
+}
+
+function buildAccessSummary({ subscriptionSummary, profile, createdAtFallback }) {
+  const subscriptionActive = Boolean(subscriptionSummary?.subscriptionActive);
+  const subscriptionStatus = String(subscriptionSummary?.subscriptionStatus || "inactive");
+  const trial = computeTrialStatus(profile?.created_at || createdAtFallback || "");
+  const creditsBalance = Math.max(0, Math.floor(Number(profile?.credits_balance || 0)));
+  const canUsePaidFeatures = subscriptionActive;
+  return {
+    subscriptionActive,
+    subscriptionStatus,
+    subscriptionId: String(subscriptionSummary?.subscriptionId || ""),
+    customerId: String(subscriptionSummary?.customerId || ""),
+    trialStartedAt: trial.trialStartedAt,
+    trialEndsAt: trial.trialEndsAt,
+    trialActive: trial.trialActive,
+    trialExpired: trial.trialExpired,
+    creditsBalance,
+    aiActionCreditsCost: AI_ACTION_CREDITS_COST,
+    canGenerate: canUsePaidFeatures && creditsBalance >= AI_ACTION_CREDITS_COST,
+    canExport: canUsePaidFeatures,
+  };
+}
+
+async function applyAiCreditDeduction(service, userId, sourceToken, meta = {}) {
+  if (!isLikelyUuid(userId)) return { ok: false, status: 400, error: "Invalid user id." };
+  const { config, headers } = service;
+  const existingResponse = await fetch(
+    `${config.url}/rest/v1/credit_ledger?select=id&user_id=eq.${encodeURIComponent(userId)}&source=eq.${encodeURIComponent(sourceToken)}&limit=1`,
+    {
+      method: "GET",
+      headers,
+    }
+  );
+  if (existingResponse.ok) {
+    const rows = await existingResponse.json().catch(() => []);
+    if (Array.isArray(rows) && rows.length > 0) {
+      const profile = await getProfileByUserId(service, userId);
+      const credits = Math.max(0, Math.floor(Number(profile?.credits_balance || 0)));
+      return { ok: true, alreadyApplied: true, remainingCredits: credits };
+    }
+  }
+
+  const profile = await getProfileByUserId(service, userId);
+  if (!profile) return { ok: false, status: 404, error: "User profile not found." };
+  const currentCredits = Math.max(0, Math.floor(Number(profile?.credits_balance || 0)));
+  if (currentCredits < AI_ACTION_CREDITS_COST) {
+    return { ok: false, status: 402, error: `Need ${AI_ACTION_CREDITS_COST} credits to continue.`, remainingCredits: currentCredits };
+  }
+  const nextCredits = currentCredits - AI_ACTION_CREDITS_COST;
+  const ledgerResponse = await fetch(`${config.url}/rest/v1/credit_ledger`, {
+    method: "POST",
+    headers: {
+      ...headers,
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify([
+      {
+        user_id: userId,
+        project_id: null,
+        delta: -AI_ACTION_CREDITS_COST,
+        reason: "ai_generation",
+        source: sourceToken,
+        meta,
+      },
+    ]),
+  });
+  if (!ledgerResponse.ok) {
+    const reason = await ledgerResponse.text().catch(() => "");
+    return { ok: false, status: 502, error: `Unable to record AI credit usage.${reason ? ` ${reason}` : ""}` };
+  }
+  const patchResponse = await fetch(`${config.url}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`, {
+    method: "PATCH",
+    headers: {
+      ...headers,
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify({ credits_balance: nextCredits }),
+  });
+  if (!patchResponse.ok) {
+    const reason = await patchResponse.text().catch(() => "");
+    return { ok: false, status: 502, error: `Unable to apply AI credit usage.${reason ? ` ${reason}` : ""}` };
+  }
+  const rows = await patchResponse.json().catch(() => []);
+  const updatedProfile = Array.isArray(rows) ? rows[0] : profile;
+  return {
+    ok: true,
+    remainingCredits: Math.max(0, Math.floor(Number(updatedProfile?.credits_balance || nextCredits))),
+  };
+}
+
 async function handleAuthBootstrap(req, res) {
   try {
     const body = await parseJsonBody(req);
@@ -398,8 +1314,18 @@ async function handleAuthBootstrap(req, res) {
       email,
       name: String(claims?.name || claims?.user_metadata?.full_name || email.split("@")[0]),
       isAdmin: isAdminEmail(email),
-      creditsBalance: 1000,
+      creditsBalance: 0,
     };
+    if (isLikelyUuid(userId)) {
+      const ensureResult = await ensureSupabaseProfileRecord({
+        id: userId,
+        email,
+        name: profile.name,
+      });
+      if (!ensureResult.ok) {
+        console.error("Auth bootstrap profile ensure failed:", ensureResult.error || "Unknown error");
+      }
+    }
     return sendJson(res, 200, {
       ok: true,
       profile,
@@ -429,6 +1355,324 @@ function handleAuthGoogleStart(req, res) {
     "Cache-Control": "no-store",
   });
   res.end();
+}
+
+async function handleAccessStatus(req, res) {
+  const authResult = await getAuthenticatedSupabaseUser(req);
+  if (!authResult.ok) {
+    return sendJson(res, authResult.status || 401, {
+      error: authResult.error || "Sign in required.",
+      subscriptionActive: false,
+      subscriptionStatus: "inactive",
+      creditsBalance: 0,
+      aiActionCreditsCost: AI_ACTION_CREDITS_COST,
+      trialStartedAt: "",
+      trialEndsAt: "",
+      trialActive: false,
+      trialExpired: true,
+      canGenerate: false,
+      canExport: false,
+    });
+  }
+  const service = getSupabaseServiceHeaders();
+  if (!service.ok) return sendJson(res, 500, { error: service.error });
+  const userId = String(authResult.user?.id || "").trim();
+  let email = normalizeEmail(authResult.user?.email || "");
+  const profile = await getProfileByUserId(service, userId);
+  if (!email) email = normalizeEmail(profile?.email || "");
+  let subscriptionSummary = {
+    subscriptionActive: false,
+    subscriptionStatus: "inactive",
+    subscriptionId: "",
+    customerId: "",
+  };
+  if (hasStripeConfig() && email) {
+    const customer = await fetchStripeCustomerByEmail(email);
+    if (customer?.id) {
+      const stripeSummary = await fetchStripeSubscriptionSummary(customer.id);
+      subscriptionSummary = {
+        ...stripeSummary,
+        customerId: String(customer.id || ""),
+      };
+    }
+  }
+  return sendJson(
+    res,
+    200,
+    buildAccessSummary({
+      subscriptionSummary,
+      profile,
+      createdAtFallback: authResult.user?.created_at || "",
+    })
+  );
+}
+
+async function handleStripeCheckoutSubscription(req, res) {
+  if (!hasStripeConfig() || !STRIPE_SUBSCRIPTION_PRICE_ID) {
+    return sendJson(res, 500, { error: "Stripe subscription checkout is not configured." });
+  }
+  const authResult = await getAuthenticatedSupabaseUser(req);
+  if (!authResult.ok) return sendJson(res, authResult.status || 401, { error: authResult.error || "Unauthorized." });
+  const service = getSupabaseServiceHeaders();
+  if (!service.ok) return sendJson(res, 500, { error: service.error });
+  const userId = String(authResult.user?.id || "").trim();
+  const profile = await getProfileByUserId(service, userId);
+  const email = normalizeEmail(authResult.user?.email || profile?.email || "");
+  if (!email) return sendJson(res, 400, { error: "User email is missing." });
+  try {
+    const customer = await ensureStripeCustomerForUser({
+      email,
+      userId,
+      name: String(profile?.username || email.split("@")[0]),
+    });
+    const origin = buildRequestOrigin(req);
+    const body = new URLSearchParams();
+    body.set("mode", "subscription");
+    body.set("customer", String(customer?.id || ""));
+    body.set("line_items[0][price]", STRIPE_SUBSCRIPTION_PRICE_ID);
+    body.set("line_items[0][quantity]", "1");
+    body.set("success_url", `${origin}/pricing?subscription=success`);
+    body.set("cancel_url", `${origin}/pricing?subscription=cancel`);
+    body.set("allow_promotion_codes", "true");
+    body.set("client_reference_id", userId);
+    body.set("metadata[user_id]", userId);
+    body.set("subscription_data[metadata][user_id]", userId);
+    const response = await stripeRequest("/checkout/sessions", { method: "POST", body });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const reason = payload?.error?.message || "Unable to start subscription checkout.";
+      return sendJson(res, 502, { error: String(reason) });
+    }
+    return sendJson(res, 200, { checkoutUrl: String(payload?.url || "") });
+  } catch (error) {
+    return sendJson(res, 500, { error: error?.message || "Unable to start subscription checkout." });
+  }
+}
+
+async function handleStripeCheckoutCredits(req, res) {
+  if (!hasStripeConfig() || !STRIPE_CREDITS_PRICE_ID) {
+    return sendJson(res, 500, { error: "Stripe credits checkout is not configured." });
+  }
+  const authResult = await getAuthenticatedSupabaseUser(req);
+  if (!authResult.ok) return sendJson(res, authResult.status || 401, { error: authResult.error || "Unauthorized." });
+  const service = getSupabaseServiceHeaders();
+  if (!service.ok) return sendJson(res, 500, { error: service.error });
+  const userId = String(authResult.user?.id || "").trim();
+  const profile = await getProfileByUserId(service, userId);
+  const email = normalizeEmail(authResult.user?.email || profile?.email || "");
+  if (!email) return sendJson(res, 400, { error: "User email is missing." });
+  try {
+    const customer = await ensureStripeCustomerForUser({
+      email,
+      userId,
+      name: String(profile?.username || email.split("@")[0]),
+    });
+    const summary = await fetchStripeSubscriptionSummary(String(customer?.id || ""));
+    if (!summary.subscriptionActive) {
+      return sendJson(res, 403, { error: "Active subscription required before buying credits." });
+    }
+
+    const origin = buildRequestOrigin(req);
+    const body = new URLSearchParams();
+    body.set("mode", "payment");
+    body.set("customer", String(customer?.id || ""));
+    body.set("line_items[0][price]", STRIPE_CREDITS_PRICE_ID);
+    body.set("line_items[0][quantity]", "1");
+    body.set("success_url", `${origin}/pricing?credits=success`);
+    body.set("cancel_url", `${origin}/pricing?credits=cancel`);
+    body.set("client_reference_id", userId);
+    body.set("metadata[user_id]", userId);
+    body.set("metadata[purchase_type]", "credits");
+    body.set("metadata[credits]", String(STRIPE_TOPUP_CREDITS));
+    const response = await stripeRequest("/checkout/sessions", { method: "POST", body });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const reason = payload?.error?.message || "Unable to start credits checkout.";
+      return sendJson(res, 502, { error: String(reason) });
+    }
+    return sendJson(res, 200, { checkoutUrl: String(payload?.url || "") });
+  } catch (error) {
+    return sendJson(res, 500, { error: error?.message || "Unable to start credits checkout." });
+  }
+}
+
+async function handleStripeBillingPortal(req, res) {
+  if (!hasStripeConfig()) {
+    return sendJson(res, 500, { error: "Stripe billing portal is not configured." });
+  }
+  const authResult = await getAuthenticatedSupabaseUser(req);
+  if (!authResult.ok) return sendJson(res, authResult.status || 401, { error: authResult.error || "Unauthorized." });
+  const service = getSupabaseServiceHeaders();
+  if (!service.ok) return sendJson(res, 500, { error: service.error });
+  const userId = String(authResult.user?.id || "").trim();
+  const profile = await getProfileByUserId(service, userId);
+  const email = normalizeEmail(authResult.user?.email || profile?.email || "");
+  if (!email) return sendJson(res, 400, { error: "User email is missing." });
+  try {
+    const customer = await fetchStripeCustomerByEmail(email);
+    if (!customer?.id) return sendJson(res, 404, { error: "No Stripe customer found for this user." });
+    const body = new URLSearchParams();
+    body.set("customer", String(customer.id));
+    body.set("return_url", `${buildRequestOrigin(req)}/pricing`);
+    const response = await stripeRequest("/billing_portal/sessions", { method: "POST", body });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const reason = payload?.error?.message || "Unable to open billing portal.";
+      return sendJson(res, 502, { error: String(reason) });
+    }
+    return sendJson(res, 200, { portalUrl: String(payload?.url || "") });
+  } catch (error) {
+    return sendJson(res, 500, { error: error?.message || "Unable to open billing portal." });
+  }
+}
+
+async function handleStripeWebhook(req, res) {
+  if (!hasStripeConfig() || !STRIPE_WEBHOOK_SECRET) {
+    return sendJson(res, 500, { error: "Stripe webhook is not configured." });
+  }
+  let rawBody;
+  try {
+    rawBody = await readRawBody(req, { maxBytes: 2 * 1024 * 1024 });
+  } catch (error) {
+    return sendJson(res, 413, { error: error?.message || "Webhook body too large." });
+  }
+  const signature = String(req.headers["stripe-signature"] || "");
+  const valid = verifyStripeWebhookSignature(rawBody, signature, STRIPE_WEBHOOK_SECRET);
+  if (!valid) {
+    return sendJson(res, 400, { error: "Invalid Stripe signature." });
+  }
+  let event;
+  try {
+    event = JSON.parse(rawBody.toString("utf8") || "{}");
+  } catch {
+    return sendJson(res, 400, { error: "Invalid webhook payload." });
+  }
+
+  try {
+    if (event?.type === "checkout.session.completed") {
+      const sessionObject = event?.data?.object || {};
+      const mode = String(sessionObject?.mode || "").trim();
+      const purchaseType = String(sessionObject?.metadata?.purchase_type || "").trim();
+      if (mode === "subscription") {
+        const rawUserId = String(sessionObject?.metadata?.user_id || sessionObject?.client_reference_id || "").trim();
+        const service = getSupabaseServiceHeaders();
+        if (service.ok) {
+          let targetUserId = rawUserId;
+          if (!isLikelyUuid(targetUserId)) {
+            const customerEmail = normalizeEmail(
+              sessionObject?.customer_details?.email ||
+              sessionObject?.customer_email ||
+              ""
+            );
+            const profileByEmail = await getProfileByEmail(service, customerEmail);
+            targetUserId = String(profileByEmail?.id || "").trim();
+          }
+          if (isLikelyUuid(targetUserId)) {
+            await applyStripeCreditsTopup(
+              service,
+              targetUserId,
+              STRIPE_SUBSCRIPTION_CREDITS,
+              `stripe_subscribe_session_${String(sessionObject?.id || "")}`,
+              {
+                stripe_session_id: String(sessionObject?.id || ""),
+                stripe_subscription: String(sessionObject?.subscription || ""),
+                source: "subscription_checkout",
+                credits: STRIPE_SUBSCRIPTION_CREDITS,
+              }
+            );
+          }
+        }
+      }
+      if (mode === "payment" && purchaseType === "credits") {
+        const rawUserId = String(sessionObject?.metadata?.user_id || sessionObject?.client_reference_id || "").trim();
+        const sourceToken = `stripe_checkout_${String(sessionObject?.id || "")}`;
+        const meta = {
+          stripe_session_id: String(sessionObject?.id || ""),
+          stripe_payment_intent: String(sessionObject?.payment_intent || ""),
+          credits: Number(sessionObject?.metadata?.credits || STRIPE_TOPUP_CREDITS),
+        };
+        const service = getSupabaseServiceHeaders();
+        if (service.ok) {
+          let targetUserId = rawUserId;
+          if (!isLikelyUuid(targetUserId)) {
+            const customerEmail = normalizeEmail(
+              sessionObject?.customer_details?.email ||
+              sessionObject?.customer_email ||
+              ""
+            );
+            const profileByEmail = await getProfileByEmail(service, customerEmail);
+            targetUserId = String(profileByEmail?.id || "").trim();
+          }
+          if (isLikelyUuid(targetUserId)) {
+            const applyResult = await applyStripeCreditsTopup(
+              service,
+              targetUserId,
+              Number(sessionObject?.metadata?.credits || STRIPE_TOPUP_CREDITS),
+              sourceToken,
+              meta
+            );
+            if (applyResult.ok && !applyResult.alreadyApplied) {
+              const profile = applyResult.profile || {};
+              sendCreditsPurchaseAndNotificationEmail({
+                userName: String(profile?.username || profile?.email || "").trim(),
+                userEmail: String(profile?.email || "").trim(),
+                creditsAdded: Number(sessionObject?.metadata?.credits || STRIPE_TOPUP_CREDITS),
+                previousCredits: applyResult.previousCredits,
+                nextCredits: applyResult.nextCredits,
+              }).catch((error) => {
+                console.error("Credits purchase email failed:", error?.message || error);
+              });
+            }
+          }
+        }
+      }
+    }
+    if (event?.type === "invoice.payment_succeeded") {
+      const invoice = event?.data?.object || {};
+      const billingReason = String(invoice?.billing_reason || "");
+      const isSubscriptionCycle = [
+        "subscription_cycle",
+        "subscription_create",
+      ].includes(billingReason);
+      if (isSubscriptionCycle) {
+        const service = getSupabaseServiceHeaders();
+        if (service.ok) {
+          const customerEmail = normalizeEmail(String(invoice?.customer_email || ""));
+          let profile = customerEmail ? await getProfileByEmail(service, customerEmail) : null;
+          if (!profile && invoice?.customer) {
+            const customerResponse = await stripeRequest(`/customers/${encodeURIComponent(String(invoice.customer))}`, {
+              method: "GET",
+            });
+            if (customerResponse.ok) {
+              const customerPayload = await customerResponse.json().catch(() => ({}));
+              const email = normalizeEmail(customerPayload?.email || "");
+              if (email) profile = await getProfileByEmail(service, email);
+            }
+          }
+          const targetUserId = String(profile?.id || "").trim();
+          if (isLikelyUuid(targetUserId)) {
+            await applyStripeCreditsTopup(
+              service,
+              targetUserId,
+              STRIPE_SUBSCRIPTION_CREDITS,
+              `stripe_subscription_invoice_${String(invoice?.id || "")}`,
+              {
+                stripe_invoice_id: String(invoice?.id || ""),
+                stripe_subscription: String(invoice?.subscription || ""),
+                billing_reason: billingReason,
+                source: "subscription_invoice",
+                credits: STRIPE_SUBSCRIPTION_CREDITS,
+              }
+            );
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Stripe webhook handling error:", error?.message || error);
+  }
+
+  return sendJson(res, 200, { received: true });
 }
 
 function buildProjectSessionObjectPath(userId, projectId) {
@@ -1434,112 +2678,149 @@ function extractImageFromGenerateResponse(payload) {
 }
 
 async function handleImageGenerate(req, res) {
-  let raw = "";
-  req.on("data", (chunk) => {
-    raw += chunk;
-    if (raw.length > 16 * 1024 * 1024) req.destroy();
-  });
-
-  req.on("end", async () => {
-    try {
-      const { prompt, model, size, aspectRatio, resolution, sourceImageDataUrl } = JSON.parse(raw || "{}");
-      const promptText = String(prompt || "").trim();
-      if (!promptText) {
-        return sendJson(res, 400, { error: "Missing prompt." });
-      }
-
-      const recraftToken = normalizeRecraftToken(process.env.RECRAFT_API_TOKEN || process.env.RECRAFT_API_KEY || "");
-      if (!recraftToken) {
-        return sendJson(res, 500, { error: "Server missing RECRAFT_API_TOKEN in environment." });
-      }
-
-      const sourceImage = parseImageDataUrl(sourceImageDataUrl);
-      const selectedAspectRatio = normalizeImageAspectRatio(aspectRatio);
-      const selectedResolution = normalizeImageResolution(resolution);
-      const selectedSize = normalizeRecraftSize(size);
-      const effectiveSize = selectedSize || buildRecraftSize(selectedAspectRatio, selectedResolution);
-      const effectiveResolution = selectedSize ? resolutionFromRecraftSize(selectedSize) : selectedResolution;
-      const effectiveAspectRatio = RECRAFT_SIZE_TO_ASPECT[effectiveSize] || selectedAspectRatio;
-      const targetModel = sourceImage
-        ? selectRecraftEditModel()
-        : selectRecraftGenerationModel(model, effectiveResolution);
-
-      let response;
-      if (sourceImage) {
-        const imageBuffer = Buffer.from(sourceImage.data, "base64");
-        const imageBlob = new Blob([imageBuffer], { type: sourceImage.mimeType });
-        const form = new FormData();
-        form.set("model", targetModel);
-        form.set("prompt", promptText);
-        form.set("image", imageBlob, "source-image.png");
-        response = await fetch("https://external.api.recraft.ai/v1/images/imageToImage", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${recraftToken}`,
-          },
-          body: form,
-        });
-      } else {
-        const payload = {
-          model: targetModel,
-          prompt: promptText,
-          size: effectiveSize,
-        };
-        response = await fetch("https://external.api.recraft.ai/v1/images/generations", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${recraftToken}`,
-          },
-          body: JSON.stringify(payload),
-        });
-      }
-
-      let payload = null;
-      try {
-        payload = await response.json();
-      } catch {
-        payload = null;
-      }
-      if (!response.ok) {
-        const reason =
-          payload?.message ||
-          payload?.error?.message ||
-          payload?.error ||
-          "Recraft image generation failed.";
-        return sendJson(res, 502, { error: String(reason) });
-      }
-      const first = Array.isArray(payload?.data) ? payload.data[0] : null;
-      const b64 = String(first?.b64_json || "").replace(/\s+/g, "");
-      const url = String(first?.url || "").trim();
-      let imageDataUrl = "";
-      if (b64) {
-        imageDataUrl = `data:image/png;base64,${b64}`;
-      } else if (url) {
-        const imageResponse = await fetch(url);
-        if (!imageResponse.ok) {
-          return sendJson(res, 502, { error: `Could not fetch generated image (${imageResponse.status}).` });
-        }
-        const mimeType = String(imageResponse.headers.get("content-type") || "image/png").split(";")[0].trim() || "image/png";
-        const buffer = Buffer.from(await imageResponse.arrayBuffer());
-        imageDataUrl = `data:${mimeType};base64,${buffer.toString("base64")}`;
-      }
-      if (!imageDataUrl) {
-        return sendJson(res, 502, { error: "Recraft response did not include an image." });
-      }
-      return sendJson(res, 200, {
-        provider: "recraft",
-        model: targetModel,
-        size: effectiveSize,
-        aspectRatio: effectiveAspectRatio,
-        resolution: effectiveResolution,
-        edited: Boolean(sourceImage),
-        imageDataUrl,
-      });
-    } catch (error) {
-      return sendJson(res, 500, { error: error?.message || "Unexpected image server error." });
+  try {
+    const authResult = await getAuthenticatedSupabaseUser(req);
+    if (!authResult.ok) return sendJson(res, authResult.status || 401, { error: authResult.error || "Sign in required." });
+    const service = getSupabaseServiceHeaders();
+    if (!service.ok) return sendJson(res, 500, { error: service.error });
+    const userId = String(authResult.user?.id || "").trim();
+    const profile = await getProfileByUserId(service, userId);
+    const email = normalizeEmail(authResult.user?.email || profile?.email || "");
+    const customer = email ? await fetchStripeCustomerByEmail(email) : null;
+    const subscriptionSummary = customer?.id
+      ? { ...(await fetchStripeSubscriptionSummary(customer.id)), customerId: String(customer.id || "") }
+      : { subscriptionActive: false, subscriptionStatus: "inactive", subscriptionId: "", customerId: "" };
+    const accessSummary = buildAccessSummary({
+      subscriptionSummary,
+      profile,
+      createdAtFallback: authResult.user?.created_at || "",
+    });
+    if (!accessSummary.subscriptionActive) {
+      return sendJson(res, 403, { error: "Active subscription required for AI generation.", access: accessSummary });
     }
-  });
+    if (accessSummary.creditsBalance < AI_ACTION_CREDITS_COST) {
+      return sendJson(res, 402, { error: `Need ${AI_ACTION_CREDITS_COST} credits to continue.`, access: accessSummary });
+    }
+
+    const body = await parseJsonBody(req, { maxBytes: 16 * 1024 * 1024 });
+    const { prompt, model, size, aspectRatio, resolution, sourceImageDataUrl } = body || {};
+    const promptText = String(prompt || "").trim();
+    if (!promptText) {
+      return sendJson(res, 400, { error: "Missing prompt." });
+    }
+
+    const recraftToken = normalizeRecraftToken(process.env.RECRAFT_API_TOKEN || process.env.RECRAFT_API_KEY || "");
+    if (!recraftToken) {
+      return sendJson(res, 500, { error: "Server missing RECRAFT_API_TOKEN in environment." });
+    }
+
+    const sourceImage = parseImageDataUrl(sourceImageDataUrl);
+    const selectedAspectRatio = normalizeImageAspectRatio(aspectRatio);
+    const selectedResolution = normalizeImageResolution(resolution);
+    const selectedSize = normalizeRecraftSize(size);
+    const effectiveSize = selectedSize || buildRecraftSize(selectedAspectRatio, selectedResolution);
+    const effectiveResolution = selectedSize ? resolutionFromRecraftSize(selectedSize) : selectedResolution;
+    const effectiveAspectRatio = RECRAFT_SIZE_TO_ASPECT[effectiveSize] || selectedAspectRatio;
+    const targetModel = sourceImage
+      ? selectRecraftEditModel()
+      : selectRecraftGenerationModel(model, effectiveResolution);
+
+    let response;
+    if (sourceImage) {
+      const imageBuffer = Buffer.from(sourceImage.data, "base64");
+      const imageBlob = new Blob([imageBuffer], { type: sourceImage.mimeType });
+      const form = new FormData();
+      form.set("model", targetModel);
+      form.set("prompt", promptText);
+      form.set("image", imageBlob, "source-image.png");
+      response = await fetch("https://external.api.recraft.ai/v1/images/imageToImage", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${recraftToken}`,
+        },
+        body: form,
+      });
+    } else {
+      const payload = {
+        model: targetModel,
+        prompt: promptText,
+        size: effectiveSize,
+      };
+      response = await fetch("https://external.api.recraft.ai/v1/images/generations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${recraftToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+    }
+
+    let payload = null;
+    try {
+      payload = await response.json();
+    } catch {
+      payload = null;
+    }
+    if (!response.ok) {
+      const reason =
+        payload?.message ||
+        payload?.error?.message ||
+        payload?.error ||
+        "Recraft image generation failed.";
+      return sendJson(res, 502, { error: String(reason) });
+    }
+    const first = Array.isArray(payload?.data) ? payload.data[0] : null;
+    const b64 = String(first?.b64_json || "").replace(/\s+/g, "");
+    const url = String(first?.url || "").trim();
+    let imageDataUrl = "";
+    if (b64) {
+      imageDataUrl = `data:image/png;base64,${b64}`;
+    } else if (url) {
+      const imageResponse = await fetch(url);
+      if (!imageResponse.ok) {
+        return sendJson(res, 502, { error: `Could not fetch generated image (${imageResponse.status}).` });
+      }
+      const mimeType = String(imageResponse.headers.get("content-type") || "image/png").split(";")[0].trim() || "image/png";
+      const buffer = Buffer.from(await imageResponse.arrayBuffer());
+      imageDataUrl = `data:${mimeType};base64,${buffer.toString("base64")}`;
+    }
+    if (!imageDataUrl) {
+      return sendJson(res, 502, { error: "Recraft response did not include an image." });
+    }
+
+    const sourceType = sourceImage ? "edit" : String(targetModel || "generation");
+    const sourceToken = `ai_${sourceType}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    const deductionResult = await applyAiCreditDeduction(service, userId, sourceToken, {
+      model: targetModel,
+      edited: Boolean(sourceImage),
+      size: effectiveSize,
+    });
+    if (!deductionResult.ok) {
+      const status = Number(deductionResult.status) || 402;
+      return sendJson(res, status, {
+        error: deductionResult.error || `Need ${AI_ACTION_CREDITS_COST} credits to continue.`,
+        access: {
+          ...accessSummary,
+          creditsBalance: Math.max(0, Number(deductionResult.remainingCredits || 0)),
+        },
+      });
+    }
+
+    return sendJson(res, 200, {
+      provider: "recraft",
+      model: targetModel,
+      size: effectiveSize,
+      aspectRatio: effectiveAspectRatio,
+      resolution: effectiveResolution,
+      edited: Boolean(sourceImage),
+      imageDataUrl,
+      creditsUsed: AI_ACTION_CREDITS_COST,
+      remainingCredits: Math.max(0, Number(deductionResult.remainingCredits || 0)),
+    });
+  } catch (error) {
+    return sendJson(res, 500, { error: error?.message || "Unexpected image server error." });
+  }
 }
 
 async function handleLayoutGenerate(req, res) {
@@ -1781,6 +3062,7 @@ function requestHandler(req, res) {
   const reqUrl = new URL(req.url || "/", `http://${req.headers.host || "127.0.0.1"}`);
   const pathname = reqUrl.pathname;
   const projectSessionPathMatch = pathname.match(/^\/api\/projects\/([^/]+)\/session$/);
+  const adminUserPathMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)$/);
   const legacyUuidPathMatch = String(pathname || "").match(
     /^\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$/
   );
@@ -1838,6 +3120,66 @@ function requestHandler(req, res) {
 
   if (req.method === "POST" && pathname === "/api/auth/bootstrap") {
     handleAuthBootstrap(req, res);
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/access/status") {
+    handleAccessStatus(req, res);
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/stripe/checkout/subscription") {
+    handleStripeCheckoutSubscription(req, res);
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/stripe/checkout/credits") {
+    handleStripeCheckoutCredits(req, res);
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/stripe/billing-portal") {
+    handleStripeBillingPortal(req, res);
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/stripe/webhook") {
+    handleStripeWebhook(req, res);
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/admin/login") {
+    handleAdminLogin(req, res);
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/admin/session") {
+    handleAdminSession(req, res);
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/admin/logout") {
+    handleAdminLogout(req, res);
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/admin/users") {
+    handleAdminUsersList(req, res);
+    return;
+  }
+
+  if (req.method === "PATCH" && adminUserPathMatch?.[1]) {
+    handleAdminUserUpdate(req, res, decodeURIComponent(adminUserPathMatch[1]));
+    return;
+  }
+
+  if (req.method === "DELETE" && adminUserPathMatch?.[1]) {
+    handleAdminUserDelete(req, res, decodeURIComponent(adminUserPathMatch[1]));
+    return;
+  }
+
+  if (req.method === "POST" && pathname === "/api/admin/email") {
+    handleAdminUserEmail(req, res);
     return;
   }
 

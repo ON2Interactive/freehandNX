@@ -12,6 +12,7 @@ const toolUploadBtn = document.getElementById("toolUploadBtn");
 const toolShapesBtn = document.getElementById("toolShapesBtn");
 const toolIconsBtn = document.getElementById("toolIconsBtn");
 const toolAiImageBtn = document.getElementById("toolAiImageBtn");
+const toolVectorImageBtn = document.getElementById("toolVectorImageBtn");
 const toolLibraryBtn = document.getElementById("toolLibraryBtn");
 const toolPrintBtn = document.getElementById("toolPrintBtn");
 const topbarOrderBtn = document.getElementById("topbarOrderBtn");
@@ -82,9 +83,11 @@ const shareModalStatus = document.getElementById("shareModalStatus");
 const creditsBtn = document.getElementById("creditsBtn");
 const creditsModal = document.getElementById("creditsModal");
 const creditsModalBalance = document.getElementById("creditsModalBalance");
+const creditsModalCheckoutBtn = document.getElementById("creditsModalCheckoutBtn");
 const creditsModalCloseBtn = document.getElementById("creditsModalCloseBtn");
 const settingsModal = document.getElementById("settingsModal");
 const settingsModalCloseBtn = document.getElementById("settingsModalCloseBtn");
+const settingsSubscribeBtn = document.getElementById("settingsSubscribeBtn");
 const settingsManageBtn = document.getElementById("settingsManageBtn");
 const settingsCreditsBtn = document.getElementById("settingsCreditsBtn");
 const settingsHelpLink = document.getElementById("settingsHelpLink");
@@ -118,6 +121,12 @@ const aiImageRegenerateBtn = document.getElementById("aiImageRegenerateBtn");
 const aiImageGenerateBtn = document.getElementById("aiImageGenerateBtn");
 const aiImageCancelBtn = document.getElementById("aiImageCancelBtn");
 const aiImageLoadingIndicator = document.getElementById("aiImageLoadingIndicator");
+const vectorImageModal = document.getElementById("vectorImageModal");
+const vectorImageSize = document.getElementById("vectorImageSize");
+const vectorImagePrompt = document.getElementById("vectorImagePrompt");
+const vectorImageRegenerateBtn = document.getElementById("vectorImageRegenerateBtn");
+const vectorImageGenerateBtn = document.getElementById("vectorImageGenerateBtn");
+const vectorImageLoadingIndicator = document.getElementById("vectorImageLoadingIndicator");
 const aiImageEditModal = document.getElementById("aiImageEditModal");
 const aiImageEditPreview = document.getElementById("aiImageEditPreview");
 const aiImageEditPrompt = document.getElementById("aiImageEditPrompt");
@@ -301,8 +310,10 @@ const IONIC_ICON_NAMES = [
 const IONIC_ICON_SET = new Set(IONIC_ICON_NAMES);
 const DEFAULT_TEXT_FONT_FAMILY = "Helvetica, Arial, sans-serif";
 const DEFAULT_AI_IMAGE_MODEL = "recraftv4_pro";
+const VECTOR_AI_IMAGE_MODEL = "recraftv4_vector";
 const AI_IMAGE_PREFS_STORAGE_KEY = "freehandnx.aiImagePrefs.v1";
 const DEFAULT_AI_IMAGE_SIZE = "3:4";
+const AI_ACTION_CREDITS_COST = 10;
 const RECRAFT_SIZE_OPTIONS = [
   { size: "1:1", apiSize: "2048x2048", aspectRatio: "1:1", resolution: "2K" },
   { size: "2:1", apiSize: "3072x1536", aspectRatio: "2:1", resolution: "2K" },
@@ -320,13 +331,12 @@ const RECRAFT_SIZE_OPTIONS = [
   { size: "9:16", apiSize: "1536x2688", aspectRatio: "9:16", resolution: "2K" },
 ];
 const RECRAFT_SIZE_MAP = new Map(RECRAFT_SIZE_OPTIONS.map((entry) => [entry.size, entry]));
-const CREDITS_STORAGE_KEY = "freehandnx.credits.v1";
 const PROJECTS_STORAGE_KEY = "freehandnx.projects.v1";
 const PROJECT_META_STORAGE_KEY = "freehandnx.activeProject.v1";
 const AUTH_TOKEN_STORAGE_KEY = "darkroomx_auth_token";
 const REFRESH_TOKEN_STORAGE_KEY = "darkroomx_refresh_token";
 const DEFAULT_PROJECT_NAME = "Untitled FreehandNX Project";
-const DEFAULT_CREDITS = 1000;
+const DEFAULT_CREDITS = 0;
 const CLOUD_SESSION_REQUEST_SOFT_LIMIT_BYTES = 4_000_000;
 const CANVAS_PAN_MARGIN = 420;
 const DEFAULT_INSERT_TOP = 72;
@@ -507,6 +517,17 @@ const state = {
   currentProjectName: "",
   projectsLoaded: false,
   credits: DEFAULT_CREDITS,
+  access: {
+    loaded: false,
+    subscriptionActive: false,
+    subscriptionStatus: "inactive",
+    trialStartedAt: "",
+    trialEndsAt: "",
+    trialActive: false,
+    trialExpired: true,
+    canGenerate: false,
+    canExport: false,
+  },
   isReadOnly: false,
   textDraw: null,
   pendingTextEditId: null,
@@ -1891,6 +1912,10 @@ function setAiImageLoading(isLoading) {
   aiImageLoadingIndicator?.classList.toggle("hidden", !isLoading);
 }
 
+function setVectorImageLoading(isLoading) {
+  vectorImageLoadingIndicator?.classList.toggle("hidden", !isLoading);
+}
+
 function ensureImageVersionState(item) {
   if (!item || item.type !== "image") return;
   if (!Array.isArray(item.aiVersionHistory)) {
@@ -2037,7 +2062,8 @@ function setAiImageEditModalStatus(message, isError = false) {
 }
 
 function openAiImageEditModal() {
-  if (!requireCredits(1, "AI image edit")) return;
+  if (!requireSubscriptionForPaidFeatures("AI image edit")) return;
+  if (!requireCredits(AI_ACTION_CREDITS_COST, "AI image edit")) return;
   if (!requireEditableStatus()) return;
   const selectedImage = getSelectedImageForAiEdit();
   if (!selectedImage) {
@@ -2104,11 +2130,18 @@ function syncAiImagePrefsFromInputs() {
 function updateAiImageRegenerateButton() {
   if (!aiImageRegenerateBtn) return;
   const required = Math.max(1, Number(state.aiImageLastRequest?.variantCount) || 1);
-  aiImageRegenerateBtn.disabled = !state.aiImageLastRequest || !hasEnoughCredits(required) || state.isReadOnly;
+  aiImageRegenerateBtn.disabled = !state.aiImageLastRequest || !hasActiveSubscription() || !hasEnoughCredits(required * AI_ACTION_CREDITS_COST) || state.isReadOnly;
+}
+
+function updateVectorImageRegenerateButton() {
+  if (!vectorImageRegenerateBtn) return;
+  const required = Math.max(1, Number(state.aiImageLastRequest?.variantCount) || 1);
+  vectorImageRegenerateBtn.disabled = !state.aiImageLastRequest || !hasActiveSubscription() || !hasEnoughCredits(required * AI_ACTION_CREDITS_COST) || state.isReadOnly;
 }
 
 function openAiImageModal() {
-  if (!requireCredits(1, "AI image generation")) return;
+  if (!requireSubscriptionForPaidFeatures("AI image generation")) return;
+  if (!requireCredits(AI_ACTION_CREDITS_COST, "AI image generation")) return;
   if (!requireEditableStatus()) return;
   state.aiImagePrefs.model = DEFAULT_AI_IMAGE_MODEL;
   state.aiImagePrefs.imageSize = normalizeRecraftSize(state.aiImagePrefs.imageSize);
@@ -2140,6 +2173,36 @@ function closeAiImageModal() {
   aiImageModal?.classList.add("hidden");
 }
 
+function openVectorImageModal() {
+  if (!requireSubscriptionForPaidFeatures("Vector Art generation")) return;
+  if (!requireCredits(AI_ACTION_CREDITS_COST, "Vector Art generation")) return;
+  if (!requireEditableStatus()) return;
+  state.aiImagePrefs.model = VECTOR_AI_IMAGE_MODEL;
+  state.aiImagePrefs.imageSize = normalizeRecraftSize(state.aiImagePrefs.imageSize);
+  const sizeMeta = getRecraftSizeMeta(state.aiImagePrefs.imageSize);
+  state.aiImagePrefs.aspectRatio = sizeMeta.aspectRatio;
+  state.aiImagePrefs.resolution = sizeMeta.resolution;
+  if (vectorImageSize) vectorImageSize.value = state.aiImagePrefs.imageSize;
+  if (vectorImageGenerateBtn) vectorImageGenerateBtn.disabled = false;
+  state.aiImageVariantResults = [];
+  if (vectorImagePrompt) {
+    const rememberedPrompt = String(state.aiImageLastRequest?.prompt || "").trim();
+    if (rememberedPrompt && !String(vectorImagePrompt.value || "").trim()) {
+      vectorImagePrompt.value = rememberedPrompt;
+    }
+  }
+  setVectorImageLoading(false);
+  updateVectorImageRegenerateButton();
+  vectorImageModal?.classList.remove("hidden");
+  setTimeout(() => vectorImagePrompt?.focus(), 0);
+}
+
+function closeVectorImageModal() {
+  setVectorImageLoading(false);
+  if (vectorImageGenerateBtn) vectorImageGenerateBtn.disabled = false;
+  vectorImageModal?.classList.add("hidden");
+}
+
 function openClearCanvasModal() {
   clearCanvasModal?.classList.remove("hidden");
 }
@@ -2149,7 +2212,7 @@ function closeClearCanvasModal() {
 }
 
 function openExportModal() {
-  if (!requireCredits(1, "Export")) return;
+  if (!requireSubscriptionForPaidFeatures("export")) return;
   exportModal?.classList.remove("hidden");
 }
 
@@ -2158,7 +2221,7 @@ function closeExportModal() {
 }
 
 function openShareModal() {
-  if (!requireCredits(1, "Share")) return;
+  if (!requireSubscriptionForPaidFeatures("share")) return;
   if (state.isReadOnly) {
     setStatus("View-only shared link. Sharing is disabled.");
     return;
@@ -2196,6 +2259,9 @@ function closeModalById(modalId) {
       return;
     case "aiImageModal":
       closeAiImageModal();
+      return;
+    case "vectorImageModal":
+      closeVectorImageModal();
       return;
     case "aiImageEditModal":
       closeAiImageEditModal();
@@ -2562,7 +2628,12 @@ function renderStoredProjects() {
 }
 
 function openSettingsModal() {
-  setSettingsModalStatus("");
+  refreshSettingsAccessUi();
+  if (state.access?.trialExpired && !state.access?.subscriptionActive) {
+    setSettingsModalStatus("Your 24-hour trial has ended. Subscribe to continue with AI tools and export.");
+  } else {
+    setSettingsModalStatus("");
+  }
   settingsModal?.classList.remove("hidden");
 }
 
@@ -2687,41 +2758,134 @@ function setShareModalStatus(message, isError = false) {
 }
 
 function loadCredits() {
-  try {
-    const raw = window.localStorage.getItem(CREDITS_STORAGE_KEY);
-    const parsed = Number(raw);
-    if (Number.isFinite(parsed) && parsed >= 0) {
-      state.credits = Math.max(DEFAULT_CREDITS, Math.floor(parsed));
-      return;
-    }
-  } catch {
-    // Ignore bad local storage values.
-  }
   state.credits = DEFAULT_CREDITS;
 }
 
 function persistCredits() {
-  try {
-    window.localStorage.setItem(CREDITS_STORAGE_KEY, String(Math.max(0, Math.floor(state.credits || 0))));
-  } catch {
-    // Ignore local storage write failures.
+  // Credits are canonical in Supabase/Stripe access status.
+}
+
+function hasActiveSubscription() {
+  return Boolean(state.access?.subscriptionActive);
+}
+
+function refreshSettingsAccessUi() {
+  const subscribed = hasActiveSubscription();
+  if (settingsSubscribeBtn) settingsSubscribeBtn.style.display = subscribed ? "none" : "";
+  if (settingsManageBtn) settingsManageBtn.style.display = "";
+  if (settingsCreditsBtn) settingsCreditsBtn.style.display = "";
+}
+
+function setAccessState(payload = {}) {
+  const creditsBalance = Math.max(0, Math.floor(Number(payload?.creditsBalance ?? state.credits ?? 0)));
+  state.credits = creditsBalance;
+  state.access = {
+    loaded: true,
+    subscriptionActive: Boolean(payload?.subscriptionActive),
+    subscriptionStatus: String(payload?.subscriptionStatus || "inactive"),
+    trialStartedAt: String(payload?.trialStartedAt || ""),
+    trialEndsAt: String(payload?.trialEndsAt || ""),
+    trialActive: Boolean(payload?.trialActive),
+    trialExpired: Boolean(payload?.trialExpired),
+    canGenerate: Boolean(payload?.canGenerate),
+    canExport: Boolean(payload?.canExport),
+  };
+  updateCreditsUI();
+  refreshSettingsAccessUi();
+}
+
+async function fetchAccessStatus() {
+  const token = getAuthToken();
+  if (!token) {
+    setAccessState({
+      subscriptionActive: false,
+      subscriptionStatus: "inactive",
+      trialActive: false,
+      trialExpired: true,
+      canGenerate: false,
+      canExport: false,
+      creditsBalance: 0,
+    });
+    return state.access;
   }
+  const response = await authFetch("/api/access/status", { method: "GET" });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.error || "Unable to fetch access status.");
+  }
+  setAccessState(payload || {});
+  return state.access;
+}
+
+async function openSubscriptionCheckout() {
+  const token = getAuthToken();
+  if (!token) {
+    window.location.href = "/signup";
+    return;
+  }
+  const response = await fetch("/api/stripe/checkout/subscription", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: "{}",
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.error || "Unable to start subscription checkout.");
+  }
+  const checkoutUrl = String(payload?.checkoutUrl || "").trim();
+  if (!checkoutUrl) throw new Error("Missing checkout URL.");
+  window.location.href = checkoutUrl;
+}
+
+async function openCreditsCheckout() {
+  const token = getAuthToken();
+  if (!token) {
+    window.location.href = "/signup";
+    return;
+  }
+  const response = await fetch("/api/stripe/checkout/credits", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: "{}",
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.error || "Unable to start credits checkout.");
+  }
+  const checkoutUrl = String(payload?.checkoutUrl || "").trim();
+  if (!checkoutUrl) throw new Error("Missing checkout URL.");
+  window.location.href = checkoutUrl;
 }
 
 function updateCreditsUI() {
   const credits = Math.max(0, Math.floor(state.credits || 0));
   const depleted = credits <= 0;
+  const subscribed = hasActiveSubscription();
   if (creditsBtn) {
-    creditsBtn.textContent = depleted ? "Buy Credits" : `Credits: ${credits}`;
+    creditsBtn.textContent = subscribed ? (depleted ? "Buy Credits" : `Credits: ${credits}`) : "Subscribe";
     creditsBtn.classList.toggle("is-depleted", depleted);
   }
   if (creditsModalBalance) {
     creditsModalBalance.textContent = `Current balance: ${credits} credit${credits === 1 ? "" : "s"}`;
   }
+  if (creditsModalCheckoutBtn) {
+    creditsModalCheckoutBtn.disabled = !subscribed;
+  }
   updateCreditLockedControls();
 }
 
 function openCreditsModal() {
+  if (!hasActiveSubscription()) {
+    openSettingsModal();
+    setSettingsModalStatus("Subscribe first, then buy credits.");
+    return;
+  }
   updateCreditsUI();
   creditsModal?.classList.remove("hidden");
 }
@@ -2738,49 +2902,55 @@ function hasEnoughCredits(cost = 1) {
   return Math.max(0, Math.floor(state.credits || 0)) >= Math.max(1, Math.floor(cost || 1));
 }
 
-function consumeCredits(cost = 1, reason = "") {
-  const amount = Math.max(1, Math.floor(cost || 1));
-  if (!hasEnoughCredits(amount)) return false;
-  state.credits = Math.max(0, Math.floor(state.credits || 0) - amount);
-  persistCredits();
-  updateCreditsUI();
-  if (reason) {
-    setStatus(`${reason}. ${state.credits} credit${state.credits === 1 ? "" : "s"} left.`);
-  }
-  return true;
-}
-
 function requireCredits(cost = 1, actionLabel = "This action") {
+  if (!hasActiveSubscription()) return requireSubscriptionForPaidFeatures(actionLabel);
   const amount = Math.max(1, Math.floor(cost || 1));
   if (hasEnoughCredits(amount)) return true;
-  setStatus(`${actionLabel} requires ${amount} credit${amount === 1 ? "" : "s"}. Buy credits to continue.`);
+  setStatus(`${actionLabel} requires ${amount} credits. Buy credits to continue.`);
   openCreditsModal();
   return false;
 }
 
+function requireSubscriptionForPaidFeatures(actionLabel = "This action") {
+  if (hasActiveSubscription()) return true;
+  if (state.access?.trialActive) {
+    setStatus(`Subscription required for ${actionLabel}. Free trial is view-only.`);
+  } else if (state.access?.trialExpired) {
+    setStatus(`Your 24-hour trial ended. Subscribe to continue with ${actionLabel}.`);
+  } else {
+    setStatus(`Subscription required for ${actionLabel}.`);
+  }
+  openSettingsModal();
+  return false;
+}
+
 function updateCreditLockedControls() {
-  const hasOne = hasEnoughCredits(1);
+  const hasEnoughForAi = hasEnoughCredits(AI_ACTION_CREDITS_COST);
   const readOnly = Boolean(state.isReadOnly);
-  if (exportBtn) exportBtn.disabled = readOnly || !hasOne;
-  if (shareBtn) shareBtn.disabled = readOnly || !hasOne;
-  if (toolAiImageBtn) toolAiImageBtn.disabled = readOnly || !hasOne;
-  if (createShareLinkBtn) createShareLinkBtn.disabled = readOnly || !hasOne;
-  if (nativeShareBtn) nativeShareBtn.disabled = readOnly || !hasOne;
+  const subscribed = hasActiveSubscription();
+  if (exportBtn) exportBtn.disabled = readOnly || !subscribed;
+  if (shareBtn) shareBtn.disabled = readOnly || !subscribed;
+  if (toolAiImageBtn) toolAiImageBtn.disabled = readOnly || !subscribed || !hasEnoughForAi;
+  if (toolVectorImageBtn) toolVectorImageBtn.disabled = readOnly || !subscribed || !hasEnoughForAi;
+  if (createShareLinkBtn) createShareLinkBtn.disabled = readOnly || !subscribed;
+  if (nativeShareBtn) nativeShareBtn.disabled = readOnly || !subscribed;
   if (copyShareLinkBtn) {
     const hasValue = Boolean(String(shareLinkField?.value || "").trim());
-    copyShareLinkBtn.disabled = readOnly || !hasOne || !hasValue;
+    copyShareLinkBtn.disabled = readOnly || !subscribed || !hasValue;
   }
-  if (exportModalConfirmBtn) exportModalConfirmBtn.disabled = !hasOne;
+  if (exportModalConfirmBtn) exportModalConfirmBtn.disabled = !subscribed;
   // Keep image generate actions clickable so users always see explicit credit/API errors.
   if (aiImageGenerateBtn) aiImageGenerateBtn.disabled = readOnly;
+  if (vectorImageGenerateBtn) vectorImageGenerateBtn.disabled = readOnly;
   if (aiImageEditGenerateBtn) aiImageEditGenerateBtn.disabled = readOnly;
   const selectedImage = getSelected();
   if (propImageAiEditBtn) {
-    const ready = Boolean(selectedImage && selectedImage.type === "image" && selectedImage.src) && hasOne && !readOnly;
+    const ready = Boolean(selectedImage && selectedImage.type === "image" && selectedImage.src) && subscribed && hasEnoughForAi && !readOnly;
     propImageAiEditBtn.disabled = !ready;
     propImageAiEditBtn.classList.toggle("is-ready", ready);
   }
   updateAiImageRegenerateButton();
+  updateVectorImageRegenerateButton();
 }
 
 function setReadOnlyMode(enabled) {
@@ -2810,6 +2980,7 @@ function setReadOnlyMode(enabled) {
     toolShapesBtn,
     toolIconsBtn,
     toolAiImageBtn,
+    toolVectorImageBtn,
     propImageAiEditBtn,
     propImageDownloadBtn,
     propImageVersionPrevBtn,
@@ -3360,7 +3531,7 @@ async function requestAiImage(prompt, options = {}) {
   const timeoutId = setTimeout(() => abortController.abort(), 90000);
   let response;
   try {
-    response = await fetch("/api/image-generate", {
+    response = await authFetch("/api/image-generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal: abortController.signal,
@@ -3389,6 +3560,9 @@ async function requestAiImage(prompt, options = {}) {
     payload = {};
   }
   if (!response.ok) {
+    if (payload?.access && typeof payload.access === "object") {
+      setAccessState(payload.access);
+    }
     if (response.status === 404) {
       throw new Error("AI image API is unavailable on this server. Restart using `node server.js`.");
     }
@@ -3407,6 +3581,7 @@ async function requestAiImage(prompt, options = {}) {
     imageDataUrl,
     model: String(payload?.model || model),
     size: String(payload?.size || sizeMeta.apiSize || imageSize),
+    remainingCredits: Math.max(0, Math.floor(Number(payload?.remainingCredits ?? state.credits))),
   };
 }
 
@@ -3906,7 +4081,6 @@ function applyAiGeneratedPages(pageSpecs) {
 }
 
 async function handleAiGenerate() {
-  if (!requireCredits(1, "AI layout generation")) return;
   const prompt = String(aiPrompt?.value || "").trim();
   if (!prompt) {
     setStatus("Enter a prompt for AI generation.");
@@ -3941,7 +4115,6 @@ async function handleAiGenerate() {
     } else {
       setStatus(`AI generated ${pages.length} page${pages.length === 1 ? "" : "s"} via ${provider}.`);
     }
-    consumeCredits(1);
   } catch (error) {
     setStatus(error?.message || "AI generation failed.");
   } finally {
@@ -3951,6 +4124,7 @@ async function handleAiGenerate() {
 
 async function handleAiImageGenerate(overrides = null) {
   if (!requireEditableStatus()) return;
+  if (!requireSubscriptionForPaidFeatures("AI image generation")) return;
   if (isAiImageRequestInFlight) return;
   isAiImageRequestInFlight = true;
   clearTimeout(aiImageInFlightSafetyTimer);
@@ -3990,8 +4164,8 @@ async function handleAiImageGenerate(overrides = null) {
     const aspectRatio = sizeMeta.aspectRatio;
     const resolution = sizeMeta.resolution;
     const variantCount = 1;
-    if (!requireCredits(variantCount, "AI image generation")) {
-      setStatus(`Need ${variantCount} credit${variantCount === 1 ? "" : "s"} to generate.`);
+    if (!requireCredits(AI_ACTION_CREDITS_COST * variantCount, "AI image generation")) {
+      setStatus(`Need ${AI_ACTION_CREDITS_COST * variantCount} credits to generate.`);
       return;
     }
     if (!overrides) {
@@ -4007,10 +4181,14 @@ async function handleAiImageGenerate(overrides = null) {
       imageDataUrl: entry.imageDataUrl,
       model: entry.model || model,
     }));
+    const nextCredits = Number(results?.[results.length - 1]?.remainingCredits);
+    if (Number.isFinite(nextCredits)) {
+      state.credits = Math.max(0, Math.floor(nextCredits));
+      updateCreditsUI();
+    }
     renderAiImageVariantGrid();
     state.aiImageLastRequest = { prompt, model, imageSize, aspectRatio, resolution, variantCount };
     updateAiImageRegenerateButton();
-    consumeCredits(variantCount);
     if (variantCount === 1 && state.aiImageVariantResults[0]) {
       await applyGeneratedImageToCanvas(state.aiImageVariantResults[0].imageDataUrl, state.aiImageVariantResults[0].model || model);
       closeAiImageModal();
@@ -4027,6 +4205,93 @@ async function handleAiImageGenerate(overrides = null) {
     if (aiImageCancelBtn) aiImageCancelBtn.disabled = false;
     setAiImageLoading(false);
     updateAiImageRegenerateButton();
+  }
+}
+
+async function handleVectorImageGenerate(overrides = null) {
+  if (!requireEditableStatus()) return;
+  if (!requireSubscriptionForPaidFeatures("vector art generation")) return;
+  if (isAiImageRequestInFlight) return;
+  isAiImageRequestInFlight = true;
+  clearTimeout(aiImageInFlightSafetyTimer);
+  aiImageInFlightSafetyTimer = setTimeout(() => {
+    isAiImageRequestInFlight = false;
+    if (vectorImageGenerateBtn) vectorImageGenerateBtn.disabled = false;
+    setVectorImageLoading(false);
+    updateVectorImageRegenerateButton();
+    setStatus("Vector image request timed out. Please try again.");
+  }, 120000);
+  if (vectorImageGenerateBtn) vectorImageGenerateBtn.disabled = true;
+  if (vectorImageRegenerateBtn) vectorImageRegenerateBtn.disabled = true;
+  setVectorImageLoading(true);
+  setStatus("Generating vector image with AI...");
+  try {
+    const prompt = String(
+      overrides?.prompt ??
+      vectorImagePrompt?.value ??
+      state.aiImageLastRequest?.prompt ??
+      ""
+    ).trim();
+    if (!prompt) {
+      setStatus("Enter a vector image prompt.");
+      vectorImagePrompt?.focus();
+      return;
+    }
+    const model = String(overrides?.model ?? VECTOR_AI_IMAGE_MODEL).trim() || VECTOR_AI_IMAGE_MODEL;
+    const imageSize = normalizeRecraftSize(
+      overrides?.imageSize ??
+      overrides?.size ??
+      vectorImageSize?.value ??
+      state.aiImagePrefs.imageSize
+    );
+    const sizeMeta = getRecraftSizeMeta(imageSize);
+    const aspectRatio = sizeMeta.aspectRatio;
+    const resolution = sizeMeta.resolution;
+    const variantCount = 1;
+    if (!requireCredits(AI_ACTION_CREDITS_COST * variantCount, "Vector Art generation")) {
+      setStatus(`Need ${AI_ACTION_CREDITS_COST * variantCount} credits to generate.`);
+      return;
+    }
+    if (!overrides) {
+      state.aiImagePrefs.model = VECTOR_AI_IMAGE_MODEL;
+      state.aiImagePrefs.imageSize = imageSize;
+      state.aiImagePrefs.aspectRatio = aspectRatio;
+      state.aiImagePrefs.resolution = resolution;
+      state.aiImagePrefs.variantCount = variantCount;
+      saveAiImagePrefs();
+    }
+    state.aiImageVariantResults = [];
+    const requests = Array.from({ length: variantCount }, () =>
+      requestAiImage(prompt, { model, imageSize, aspectRatio, resolution })
+    );
+    const results = await Promise.all(requests);
+    state.aiImageVariantResults = results.map((entry) => ({
+      imageDataUrl: entry.imageDataUrl,
+      model: entry.model || model,
+    }));
+    const nextCredits = Number(results?.[results.length - 1]?.remainingCredits);
+    if (Number.isFinite(nextCredits)) {
+      state.credits = Math.max(0, Math.floor(nextCredits));
+      updateCreditsUI();
+    }
+    renderAiImageVariantGrid();
+    state.aiImageLastRequest = { prompt, model, imageSize, aspectRatio, resolution, variantCount };
+    updateVectorImageRegenerateButton();
+    if (variantCount === 1 && state.aiImageVariantResults[0]) {
+      await applyGeneratedImageToCanvas(state.aiImageVariantResults[0].imageDataUrl, state.aiImageVariantResults[0].model || model);
+      closeVectorImageModal();
+    } else {
+      setStatus(`Generated ${state.aiImageVariantResults.length} vector image variants.`);
+    }
+  } catch (error) {
+    setStatus(error?.message || "Vector image request failed.");
+  } finally {
+    clearTimeout(aiImageInFlightSafetyTimer);
+    aiImageInFlightSafetyTimer = null;
+    isAiImageRequestInFlight = false;
+    if (vectorImageGenerateBtn) vectorImageGenerateBtn.disabled = false;
+    setVectorImageLoading(false);
+    updateVectorImageRegenerateButton();
   }
 }
 
@@ -4059,8 +4324,9 @@ async function applyGeneratedImageToCanvas(imageDataUrl, modelLabel = DEFAULT_AI
 }
 
 async function handleAiImageEditGenerate() {
-  if (!requireCredits(1, "AI image edit")) {
-    setAiImageEditModalStatus(`Need 1 credit to edit. Current balance: ${Math.max(0, Math.floor(state.credits || 0))}.`, true);
+  if (!requireSubscriptionForPaidFeatures("AI image edit")) return;
+  if (!requireCredits(AI_ACTION_CREDITS_COST, "AI image edit")) {
+    setAiImageEditModalStatus(`Need ${AI_ACTION_CREDITS_COST} credits to edit. Current balance: ${Math.max(0, Math.floor(state.credits || 0))}.`, true);
     return;
   }
   if (!requireEditableStatus()) return;
@@ -4105,7 +4371,10 @@ async function handleAiImageEditGenerate() {
       selectElement(updateTarget.id);
       render();
     }, "ai-image-edit");
-    consumeCredits(1);
+    if (Number.isFinite(Number(result?.remainingCredits))) {
+      state.credits = Math.max(0, Math.floor(Number(result.remainingCredits)));
+      updateCreditsUI();
+    }
     setStatus(`AI edit applied (${result.model}).`);
     closeAiImageEditModal();
   } catch (error) {
@@ -7118,6 +7387,7 @@ function bindEvents() {
   aiGenerateCancelBtn?.addEventListener("click", closeAiModal);
   aiGenerateConfirmBtn?.addEventListener("click", handleAiGenerate);
   toolAiImageBtn?.addEventListener("click", openAiImageModal);
+  toolVectorImageBtn?.addEventListener("click", openVectorImageModal);
   aiImageCancelBtn?.addEventListener("click", closeAiImageModal);
   aiImageGenerateBtn?.addEventListener("pointerdown", (event) => {
     event.preventDefault();
@@ -7160,6 +7430,51 @@ function bindEvents() {
       model: DEFAULT_AI_IMAGE_MODEL,
     });
   });
+  vectorImageGenerateBtn?.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    void handleVectorImageGenerate();
+  });
+  vectorImageGenerateBtn?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    void handleVectorImageGenerate();
+  });
+  vectorImageRegenerateBtn?.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!state.aiImageLastRequest) {
+      setStatus("Generate one image first, then regenerate.");
+      return;
+    }
+    if (vectorImagePrompt) vectorImagePrompt.value = state.aiImageLastRequest.prompt;
+    setStatus("Regenerating vector image...");
+    void handleVectorImageGenerate({
+      ...state.aiImageLastRequest,
+      model: VECTOR_AI_IMAGE_MODEL,
+    });
+  });
+  vectorImageRegenerateBtn?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!state.aiImageLastRequest) {
+      setStatus("Generate one image first, then regenerate.");
+      return;
+    }
+    if (vectorImagePrompt) vectorImagePrompt.value = state.aiImageLastRequest.prompt;
+    setStatus("Regenerating vector image...");
+    void handleVectorImageGenerate({
+      ...state.aiImageLastRequest,
+      model: VECTOR_AI_IMAGE_MODEL,
+    });
+  });
+  vectorImageSize?.addEventListener("change", () => {
+    state.aiImagePrefs.imageSize = normalizeRecraftSize(vectorImageSize.value || state.aiImagePrefs.imageSize);
+    const sizeMeta = getRecraftSizeMeta(state.aiImagePrefs.imageSize);
+    state.aiImagePrefs.aspectRatio = sizeMeta.aspectRatio;
+    state.aiImagePrefs.resolution = sizeMeta.resolution;
+    saveAiImagePrefs();
+  });
   aiImageAspectRatio?.addEventListener("change", () => syncAiImagePrefsFromInputs());
   aiImageResolution?.addEventListener("change", () => syncAiImagePrefsFromInputs());
   aiImageVariantCount?.addEventListener("change", () => syncAiImagePrefsFromInputs());
@@ -7172,6 +7487,11 @@ function bindEvents() {
   aiImageModal?.addEventListener("pointerdown", (event) => {
     if (event.target === aiImageModal) {
       closeAiImageModal();
+    }
+  });
+  vectorImageModal?.addEventListener("pointerdown", (event) => {
+    if (event.target === vectorImageModal) {
+      closeVectorImageModal();
     }
   });
   aiImageEditModal?.addEventListener("pointerdown", (event) => {
@@ -7196,9 +7516,31 @@ function bindEvents() {
     void openLibraryModal();
   });
   toolPrintBtn?.addEventListener("click", handleOrderAction);
-  topbarOrderBtn?.addEventListener("click", handleOrderAction);
-  topbarBuyCreditsBtn?.addEventListener("click", openCreditsModal);
+  if (topbarOrderBtn) {
+    topbarOrderBtn.disabled = true;
+    topbarOrderBtn.setAttribute("aria-disabled", "true");
+    topbarOrderBtn.title = "Order is coming soon";
+  }
+  topbarBuyCreditsBtn?.addEventListener("click", () => {
+    if (!hasActiveSubscription()) {
+      openSettingsModal();
+      setSettingsModalStatus("Subscribe first, then buy credits.");
+      return;
+    }
+    openCreditsModal();
+  });
   settingsBtn?.addEventListener("click", openSettingsModal);
+  settingsSubscribeBtn?.addEventListener("click", async () => {
+    try {
+      settingsSubscribeBtn.disabled = true;
+      setSettingsModalStatus("Opening subscription checkout...");
+      await openSubscriptionCheckout();
+    } catch (error) {
+      setSettingsModalStatus(error?.message || "Unable to open subscription checkout.", true);
+    } finally {
+      settingsSubscribeBtn.disabled = false;
+    }
+  });
   settingsManageBtn?.addEventListener("click", async () => {
     try {
       settingsManageBtn.disabled = true;
@@ -7211,8 +7553,21 @@ function bindEvents() {
     }
   });
   settingsCreditsBtn?.addEventListener("click", () => {
-    closeSettingsModal();
-    openCreditsModal();
+    if (!hasActiveSubscription()) {
+      setSettingsModalStatus("Subscribe first, then buy credits.", true);
+      return;
+    }
+    void (async () => {
+      try {
+        settingsCreditsBtn.disabled = true;
+        setSettingsModalStatus("Opening credits checkout...");
+        await openCreditsCheckout();
+      } catch (error) {
+        setSettingsModalStatus(error?.message || "Unable to open credits checkout.", true);
+      } finally {
+        settingsCreditsBtn.disabled = false;
+      }
+    })();
   });
   settingsHelpLink?.addEventListener("click", (event) => {
     event.preventDefault();
@@ -7228,12 +7583,11 @@ function bindEvents() {
       setStatus("Select at least one export format.");
       return;
     }
-    if (!requireCredits(1, "Export")) return;
+    if (!requireSubscriptionForPaidFeatures("export")) return;
     try {
       if (exportModalConfirmBtn) exportModalConfirmBtn.disabled = true;
       setStatus("Building export ZIP...");
       await exportZipPackage({ includePng, includeHtml, includePdf, includeMeta });
-      consumeCredits(1);
       closeExportModal();
     } catch (error) {
       setStatus(error?.message || "Export failed.");
@@ -7345,6 +7699,11 @@ function bindEvents() {
     }
   });
   creditsBtn?.addEventListener("click", () => {
+    if (!hasActiveSubscription()) {
+      openSettingsModal();
+      setSettingsModalStatus("Subscribe first, then buy credits.");
+      return;
+    }
     if (Math.max(0, Math.floor(state.credits || 0)) <= 0) {
       openCreditsModal();
       return;
@@ -7352,6 +7711,23 @@ function bindEvents() {
     setStatus(`${state.credits} credits available.`);
   });
   creditsModalCloseBtn?.addEventListener("click", closeCreditsModal);
+  creditsModalCheckoutBtn?.addEventListener("click", async () => {
+    if (!hasActiveSubscription()) {
+      closeCreditsModal();
+      openSettingsModal();
+      setSettingsModalStatus("Subscribe first, then buy credits.");
+      return;
+    }
+    try {
+      creditsModalCheckoutBtn.disabled = true;
+      setStatus("Opening credits checkout...");
+      await openCreditsCheckout();
+    } catch (error) {
+      setStatus(error?.message || "Unable to open credits checkout.");
+    } finally {
+      creditsModalCheckoutBtn.disabled = false;
+    }
+  });
   creditsModal?.addEventListener("pointerdown", (event) => {
     if (event.target === creditsModal) {
       closeCreditsModal();
@@ -8465,6 +8841,10 @@ function bindEvents() {
       closeAiImageModal();
       return;
     }
+    if (event.key === "Escape" && vectorImageModal && !vectorImageModal.classList.contains("hidden")) {
+      closeVectorImageModal();
+      return;
+    }
     if (event.key === "Escape" && aiImageEditModal && !aiImageEditModal.classList.contains("hidden")) {
       closeAiImageEditModal();
       return;
@@ -8526,6 +8906,7 @@ async function init() {
   populateFilmLookOptions();
   updateGridFlyoutOptions();
   updateAiImageRegenerateButton();
+  updateVectorImageRegenerateButton();
   updateCreditsUI();
   setShareLinkValue("");
   setReadOnlyMode(false);
@@ -8555,6 +8936,14 @@ async function init() {
         clearInterval(hydrateWhenReady);
       }
     }, 250);
+  }
+  try {
+    await fetchAccessStatus();
+    if (state.access?.trialExpired && !state.access?.subscriptionActive) {
+      openSettingsModal();
+    }
+  } catch (error) {
+    setStatus(error?.message || "Unable to fetch subscription status.");
   }
   try {
     const loaded = await loadSharedProjectFromUrlIfPresent();

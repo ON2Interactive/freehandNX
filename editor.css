@@ -110,9 +110,9 @@ body.bf-page {
 
 .icon-btn {
   cursor: pointer;
-  background: #2a2a2a;
+  background: transparent;
   color: var(--text);
-  border: 1px solid #414141;
+  border: none;
   border-radius: 8px;
   min-width: 34px;
   height: 34px;
@@ -135,25 +135,26 @@ body.bf-page {
   height: 16px;
 }
 
+.icon-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .icon-btn:disabled {
   opacity: 0.35;
   pointer-events: none;
 }
 
 .icon-btn.is-active {
-  border-color: #737373;
-  background: #2c2c2c;
+  background: rgba(255, 255, 255, 0.12);
 }
 
 #gridBtn.is-grid-on {
-  border-color: #2f5bff;
   background: #1f2f66;
   color: #9fbcff;
 }
 
 .icon-btn-export {
-  background: #28312d;
-  border-color: #3a4741;
+  background: transparent;
   color: #c8d7cf;
 }
 
@@ -163,8 +164,7 @@ body.bf-page {
 }
 
 .icon-btn-export:hover:not(:disabled) {
-  background: #2d3833;
-  border-color: #46564e;
+  background: rgba(97, 134, 112, 0.2);
 }
 
 .topbar-flyout {
@@ -259,8 +259,8 @@ body.bf-page {
   width: 38px;
   height: 38px;
   border-radius: 8px;
-  border: 1px solid #3e3e3e;
-  background: #242424;
+  border: none;
+  background: transparent;
   color: #d8d8d8;
   display: grid;
   place-items: center;
@@ -268,9 +268,12 @@ body.bf-page {
   cursor: pointer;
 }
 
+.tool-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .tool-btn.is-active {
-  border-color: #737373;
-  background: #2c2c2c;
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .tool-btn svg {
@@ -299,13 +302,17 @@ body.bf-page {
   width: 34px;
   height: 34px;
   border-radius: 7px;
-  border: 1px solid #4a4a4a;
-  background: #2a2a2a;
+  border: none;
+  background: transparent;
   color: #d8d8d8;
   display: grid;
   place-items: center;
   padding: 0;
   cursor: pointer;
+}
+
+.shape-option-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .shape-option-btn .lucide {
@@ -1238,6 +1245,7 @@ body.bf-page.is-pan-mode .bf-canvas-panel.is-panning .bf-node {
 }
 
 #settingsModal #settingsHelpLink.settings-menu-link,
+#settingsModal #settingsSubscribeBtn.settings-menu-link,
 #settingsModal #settingsManageBtn.settings-menu-link,
 #settingsModal #settingsCreditsBtn.settings-menu-link {
   font-size: 18px !important;
@@ -1323,6 +1331,7 @@ body.bf-page.is-pan-mode .bf-canvas-panel.is-panning .bf-node {
   align-items: center;
   justify-content: center;
   padding: 0;
+  border: none;
 }
 
 .bf-icon-only-btn .lucide {
@@ -1345,24 +1354,28 @@ body.bf-page.is-pan-mode .bf-canvas-panel.is-panning .bf-node {
   z-index: 2;
 }
 
-#aiImageModal .bf-icon-only-btn {
+#aiImageModal .bf-icon-only-btn,
+#vectorImageModal .bf-icon-only-btn {
   border: none !important;
   background: transparent !important;
   box-shadow: none !important;
 }
 
-#aiImageModal .bf-icon-only-btn:hover {
+#aiImageModal .bf-icon-only-btn:hover,
+#vectorImageModal .bf-icon-only-btn:hover {
   background: rgba(255, 255, 255, 0.08) !important;
 }
 
-#aiImageModal {
+#aiImageModal,
+#vectorImageModal {
   display: grid;
   place-items: center;
   align-content: center;
   gap: 14px;
 }
 
-#aiImageModal .bf-ai-compose-shell {
+#aiImageModal .bf-ai-compose-shell,
+#vectorImageModal .bf-ai-compose-shell {
   width: min(760px, calc(100vw - 56px));
   min-height: 88px;
   border: 1px solid #353535;
@@ -1374,12 +1387,23 @@ body.bf-page.is-pan-mode .bf-canvas-panel.is-panning .bf-node {
   box-shadow: 0 24px 72px rgba(0, 0, 0, 0.5);
 }
 
+.bf-ai-compose-title {
+  margin: 20px 0 60px;
+  padding: 0 2px;
+  font-size: 22px;
+  line-height: 1.1;
+  font-weight: 600;
+  color: #f2f2f2;
+  text-align: center;
+}
+
 .bf-ai-compose-size-row {
   display: flex;
   justify-content: flex-start;
 }
 
-#aiImageSize {
+#aiImageSize,
+#vectorImageSize {
   min-width: 140px;
   height: 30px;
   border: 1px solid #3b3b3b;
@@ -1390,7 +1414,8 @@ body.bf-page.is-pan-mode .bf-canvas-panel.is-panning .bf-node {
   font-size: 12px;
 }
 
-#aiImageSize:focus {
+#aiImageSize:focus,
+#vectorImageSize:focus {
   outline: none;
   border-color: #5a85d6;
 }
@@ -1420,7 +1445,8 @@ body.bf-page.is-pan-mode .bf-canvas-panel.is-panning .bf-node {
   position: relative;
 }
 
-#aiImagePrompt {
+#aiImagePrompt,
+#vectorImagePrompt {
   min-height: 40px;
   height: 40px;
   width: 100%;
@@ -1431,7 +1457,8 @@ body.bf-page.is-pan-mode .bf-canvas-panel.is-panning .bf-node {
   padding: 0 84px 0 10px;
 }
 
-#aiImagePrompt::placeholder {
+#aiImagePrompt::placeholder,
+#vectorImagePrompt::placeholder {
   color: #9a9a9a;
 }
 
@@ -1446,7 +1473,8 @@ body.bf-page.is-pan-mode .bf-canvas-panel.is-panning .bf-node {
   pointer-events: auto;
 }
 
-#aiImagePrompt:focus {
+#aiImagePrompt:focus,
+#vectorImagePrompt:focus {
   outline: none;
 }
 
@@ -1961,4 +1989,58 @@ body.bf-page.is-readonly .bf-pages-drawer {
     grid-template-columns: 1fr;
     max-height: 360px;
   }
+}
+
+/* Global clean chrome: remove borders/backgrounds from buttons and icon controls. */
+button,
+.icon-btn,
+.tool-btn,
+.shape-option-btn,
+.bf-icon-only-btn,
+.settings-menu-link,
+.settings-projects-action,
+.settings-projects-action-icon,
+.bf-ai-compose-btn,
+.bf-ai-variant-actions button,
+.bf-image-actions-row button,
+.bf-icon-actions-row button,
+.library-modal-close,
+.bf-credits-btn {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+button:hover:not(:disabled),
+.icon-btn:hover:not(:disabled),
+.tool-btn:hover:not(:disabled),
+.shape-option-btn:hover:not(:disabled),
+.bf-icon-only-btn:hover:not(:disabled),
+.settings-menu-link:hover:not(:disabled),
+.settings-projects-action:hover:not(:disabled),
+.settings-projects-action-icon:hover:not(:disabled),
+.bf-ai-compose-btn:hover:not(:disabled),
+.bf-ai-variant-actions button:hover:not(:disabled),
+.bf-image-actions-row button:hover:not(:disabled),
+.bf-icon-actions-row button:hover:not(:disabled),
+.library-modal-close:hover:not(:disabled),
+.bf-credits-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+button:active:not(:disabled),
+.icon-btn:active:not(:disabled),
+.tool-btn:active:not(:disabled),
+.shape-option-btn:active:not(:disabled),
+.bf-icon-only-btn:active:not(:disabled),
+.settings-menu-link:active:not(:disabled),
+.settings-projects-action:active:not(:disabled),
+.settings-projects-action-icon:active:not(:disabled),
+.bf-ai-compose-btn:active:not(:disabled),
+.bf-ai-variant-actions button:active:not(:disabled),
+.bf-image-actions-row button:active:not(:disabled),
+.bf-icon-actions-row button:active:not(:disabled),
+.library-modal-close:active:not(:disabled),
+.bf-credits-btn:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12) !important;
 }

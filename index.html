@@ -3,7 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FreehandNX</title>
+    <meta name="application-name" content="FreehandNX" />
+    <meta name="description" content="Design posters, photobooks, and magazines with complete layout control. FreehandNX is a modern design tool inspired by the spirit of Freehand." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="FreehandNX" />
+    <meta property="og:title" content="FreehandNX – Modern Layout Design Tool for Posters & Magazines" />
+    <meta property="og:description" content="Design posters, photobooks, and magazines with complete layout control. FreehandNX is a modern design tool inspired by the spirit of Freehand." />
+    <meta property="og:image" content="https://freehandnx.com/assets/Share.png" />
+    <meta property="og:image:alt" content="FreehandNX share preview" />
+    <meta property="og:url" content="https://freehandnx.com/" />
+    <link rel="canonical" href="https://freehandnx.com/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="FreehandNX – Modern Layout Design Tool for Posters & Magazines" />
+    <meta name="twitter:description" content="Design posters, photobooks, and magazines with complete layout control. FreehandNX is a modern design tool inspired by the spirit of Freehand." />
+    <meta name="twitter:image" content="https://freehandnx.com/assets/Share.png" />
+    <title>FreehandNX – Modern Layout Design Tool for Posters & Magazines</title>
     <style>
       :root {
         --bg: #1a1a1a;
@@ -31,14 +45,14 @@
       }
       .page {
         min-height: 100vh;
-        padding-top: 78px;
+        padding-top: 60px;
       }
       .nav {
         position: fixed;
         inset: 0 0 auto 0;
         z-index: 4;
         width: 100%;
-        height: 78px;
+        height: 60px;
         background: rgba(26, 26, 26, 0.74);
         border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         backdrop-filter: blur(4px);
@@ -46,21 +60,21 @@
       .nav-inner {
         width: 100%;
         padding: 0 22px;
-        height: 78px;
+        height: 60px;
         display: flex;
         align-items: center;
         justify-content: space-between;
       }
       .hero-inner {
         width: 100%;
-        max-width: 1200px;
+        max-width: 960px;
         padding: 0 20px;
         margin: 0 auto;
         position: relative;
         z-index: 1;
       }
       .hero-copy {
-        max-width: 1060px;
+        max-width: 960px;
         margin: 0 auto;
         text-align: left;
       }
@@ -81,7 +95,7 @@
         font-size: 15px;
       }
       .hero {
-        min-height: 800px;
+        min-height: 900px;
         display: flex;
         align-items: center;
         position: relative;
@@ -101,21 +115,316 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 40px 20px;
+        padding: 100px 20px;
       }
       .section-blank-inner {
         width: 100%;
         max-width: 1200px;
       }
-      .section-blank-inner img {
+      .section-blank-image {
         display: block;
         width: 100%;
         height: auto;
+        margin: 60px 0;
+        opacity: 0.18;
+        transform: translateY(22px);
+        transition: opacity 520ms ease, transform 520ms ease;
+      }
+      .section-blank-image.is-visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .section-blank-title {
+        margin: 0 0 26px;
+        text-align: center;
+        font-size: 28px;
+        line-height: 1.2;
+        font-weight: 600;
+        color: #efefef;
+      }
+      .section-blank-body {
+        margin: 0 auto;
+        max-width: 760px;
+        text-align: center;
+      }
+      .section-blank-body p {
+        margin: 0 0 12px;
+        font-size: 16px;
+        line-height: 1.55;
+        color: #efefef;
+        text-align: center;
+      }
+      .section-blank-body p:last-child {
+        margin-bottom: 0;
+      }
+      .landing-ai {
+        background-color: #131313;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+        background-size: 24px 24px;
+        background-position: 0 0, 0 0;
+        padding: 120px 20px;
+      }
+      .landing-ai-inner {
+        width: min(1200px, 100%);
+        margin: 0 auto;
+      }
+      .landing-ai-title {
+        margin: 0 0 24px;
+        text-align: center;
+        font-size: 32px;
+        line-height: 1.1;
+        font-weight: 600;
+        color: #efefef;
+      }
+      .landing-ai-shell {
+        min-height: 220px;
+        border: none;
+        border-radius: 0;
+        background: transparent;
+        padding: 28px 24px;
+      }
+      .landing-ai-feature {
+        max-width: 760px;
+        margin: 0 auto;
+        text-align: left;
+      }
+      .landing-ai-feature + .landing-ai-feature {
+        margin-top: 46px;
+      }
+      .landing-ai-feature h3 {
+        margin: 0 0 12px;
+        font-size: 30px;
+        line-height: 1.1;
+        font-weight: 600;
+        color: #efefef;
+      }
+      .landing-ai-feature p {
+        margin: 0;
+        text-align: left;
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 16px;
+        line-height: 1.6;
+      }
+      .landing-page-turn {
+        background: #f2f2f2;
+        padding: 120px 20px;
+      }
+      .landing-vibe {
+        background-color: #131313;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+        background-size: 24px 24px;
+        background-position: 0 0, 0 0;
+        padding: 110px 20px;
+      }
+      .landing-vibe-inner {
+        width: 100%;
+        max-width: 760px;
+        margin: 0 auto;
+        text-align: center;
+      }
+      .landing-vibe-title {
+        margin: 0 0 16px;
+        font-size: 32px;
+        line-height: 1.15;
+        font-weight: 600;
+        color: #efefef;
+        text-align: center;
+      }
+      .landing-vibe-copy {
+        margin: 0;
+        font-size: 17px;
+        line-height: 1.6;
+        color: rgba(255, 255, 255, 0.8);
+        text-align: center;
+      }
+      .landing-page-turn-inner {
+        width: 100%;
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      .landing-page-turn-title {
+        margin: 0;
+        font-size: 28px;
+        line-height: 1.2;
+        font-weight: 600;
+        color: #4d4d4d;
+        text-align: right;
+      }
+      .landing-page-turn-header {
+        width: 100%;
+        margin: 0 auto 22px;
+        padding: 0;
+      }
+      .landing-page-turn-shell {
+        width: 100%;
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      .lpt-book {
+        position: relative;
+        width: 100%;
+        max-width: 1100px;
+        margin: 0 auto;
+        aspect-ratio: 3 / 2;
+        perspective: 1800px;
+      }
+      .lpt-underlay,
+      .lpt-page {
+        position: absolute;
+        inset: 0;
+        border-radius: 0;
+        border: 0;
+      }
+      .lpt-underlay {
+        background: #1a1a1a;
+        overflow: hidden;
+      }
+      .lpt-page-image {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .lpt-underlay::before,
+      .lpt-page::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(8, 8, 8, 0.16) 100%);
+        pointer-events: none;
+      }
+      .lpt-page {
+        background: #161616;
+        transform-origin: left center;
+        transform-style: preserve-3d;
+        overflow: hidden;
+      }
+      .lpt-page.is-turning-next {
+        animation: lpt-turn-next 640ms cubic-bezier(0.34, 0.86, 0.35, 1);
+      }
+      .lpt-page.is-turning-prev {
+        animation: lpt-turn-prev 640ms cubic-bezier(0.34, 0.86, 0.35, 1);
+      }
+      .lpt-page-content {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        padding: 20px;
+        gap: 6px;
+      }
+      .lpt-page-kicker {
+        margin: 0;
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.78);
+      }
+      .lpt-page-label {
+        margin: 0;
+        font-size: 20px;
+        line-height: 1.2;
+        font-weight: 600;
+        color: #f3f3f3;
+      }
+      .lpt-page-sub {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.4;
+        color: rgba(255, 255, 255, 0.82);
+      }
+      .lpt-controls {
+        margin-top: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+      }
+      .lpt-control-btn {
+        min-width: 44px;
+        height: 40px;
+        padding: 0;
+        border-radius: 8px;
+        border: 0;
+        background: transparent;
+        color: #202020;
+        font-size: 28px;
+        line-height: 1;
+        font-weight: 400;
+        cursor: pointer;
+      }
+      .lpt-control-btn:hover {
+        color: rgba(32, 32, 32, 0.72);
+      }
+      .lpt-page-index {
+        min-width: 82px;
+        text-align: center;
+        font-size: 14px;
+        color: rgba(20, 20, 20, 0.8);
+      }
+      @keyframes lpt-turn-next {
+        0% {
+          transform: rotateY(0deg);
+          opacity: 1;
+        }
+        100% {
+          transform: rotateY(-138deg);
+          opacity: 0.28;
+        }
+      }
+      @keyframes lpt-turn-prev {
+        0% {
+          transform: rotateY(0deg);
+          opacity: 1;
+        }
+        100% {
+          transform: rotateY(138deg);
+          opacity: 0.28;
+        }
       }
       .landing-features {
         background: linear-gradient(180deg, #0d0d0d 0%, #070707 100%);
         min-height: 800px;
-        padding: 100px 20px 160px;
+        padding: 160px 20px;
+      }
+      .landing-legacy {
+        background: #070707;
+        padding: 120px 20px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .landing-legacy-inner {
+        width: 100%;
+        max-width: 1100px;
+        margin: 0 auto;
+        text-align: center;
+      }
+      .landing-legacy-title {
+        margin: 0 0 28px;
+        font-size: 34px;
+        line-height: 1.2;
+        color: #efefef;
+        font-weight: 600;
+        text-align: center;
+      }
+      .landing-legacy-cta {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 220px;
+        height: 52px;
+        border: 1px solid rgba(242, 242, 242, 0.72);
+        border-radius: 12px;
+        text-decoration: none;
+        color: #f2f2f2;
+        font-size: 15px;
+        font-weight: 600;
+        background: transparent;
+      }
+      .landing-legacy-cta:hover {
+        background: rgba(255, 255, 255, 0.08);
       }
       .landing-features-inner {
         width: min(1400px, 100%);
@@ -184,25 +493,6 @@
         line-height: 1.55;
         text-align: left;
       }
-      .landing-features-footer {
-        width: min(980px, 100%);
-        margin: 60px auto 0;
-        padding: 0 12px;
-        text-align: center;
-      }
-      .landing-features-footer h2 {
-        margin: 0 0 14px;
-        font-size: 40px;
-        line-height: 1.06;
-        color: #f2f2f2;
-      }
-      .landing-features-footer p {
-        margin: 0 auto;
-        max-width: 860px;
-        color: rgba(255, 255, 255, 0.82);
-        font-size: 1rem;
-        line-height: 1.55;
-      }
       .landing-footer {
         background-color: #131313;
         background-image:
@@ -236,6 +526,7 @@
         display: inline-flex;
         align-items: center;
         text-decoration: none;
+        margin-bottom: 40px;
       }
       .landing-footer-logo {
         display: block;
@@ -277,7 +568,7 @@
         font-weight: 500;
       }
       h1 {
-        font-size: 70px;
+        font-size: 48px;
         font-weight: 700;
         line-height: 1.1;
         letter-spacing: -0.02em;
@@ -285,16 +576,13 @@
         margin: 0;
         text-align: left;
         white-space: normal;
-        color: transparent;
-        background: linear-gradient(180deg, #2f56ff 0%, #4e43c8 100%);
-        -webkit-background-clip: text;
-        background-clip: text;
+        color: #efefef;
       }
       h2 {
         margin-top: 18px;
-        font-size: 24px;
+        font-size: 18px;
         line-height: 1.25;
-        color: var(--text-muted);
+        color: #ffffff;
         max-width: 100%;
         text-align: left;
       }
@@ -326,6 +614,9 @@
         margin-right: 0;
       }
       @media (max-width: 992px) {
+        .hero {
+          min-height: 600px;
+        }
         .hero-copy {
           max-width: 100%;
         }
@@ -335,26 +626,76 @@
       }
       @media (max-width: 768px) {
         .page {
-          padding-top: 68px;
+          padding-top: 60px;
         }
         .nav {
-          height: 68px;
+          height: 60px;
         }
         .nav-inner {
-          height: 68px;
+          height: 60px;
           padding: 0 14px;
         }
         .logo img {
           width: 99px;
         }
+        .hero {
+          min-height: 600px;
+        }
         h1 {
           font-size: 24px;
         }
         h2 {
-          font-size: 22px;
+          font-size: 18px;
+        }
+        .section-blank-title {
+          font-size: 18px;
+          margin-bottom: 18px;
+        }
+        .section-blank-image {
+          margin: 60px 0;
+        }
+        .landing-ai {
+          padding: 96px 14px;
+        }
+        .landing-ai-title {
+          font-size: 24px;
+        }
+        .landing-ai-shell {
+          padding: 22px 18px;
+        }
+        .landing-ai-feature h3 {
+          font-size: 24px;
+        }
+        .landing-page-turn {
+          padding: 96px 14px;
+        }
+        .landing-vibe {
+          padding: 92px 14px;
+        }
+        .landing-vibe-title {
+          font-size: 24px;
+        }
+        .landing-vibe-copy {
+          font-size: 16px;
+        }
+        .landing-page-turn-title {
+          font-size: 20px;
+        }
+        .lpt-book {
+          max-width: 100%;
+        }
+        .lpt-control-btn {
+          min-width: 40px;
+          font-size: 24px;
         }
         .landing-features {
-          padding: 34px 14px 112px;
+          padding: 112px 14px;
+        }
+        .landing-legacy {
+          padding: 96px 14px;
+        }
+        .landing-legacy-title {
+          font-size: 24px;
         }
         .landing-features-copy {
           margin-bottom: 24px;
@@ -371,25 +712,31 @@
           min-height: 0;
           padding: 20px 18px;
         }
-        .landing-features-footer {
-          margin-top: 34px;
-          padding: 0 8px;
-        }
-        .landing-features-footer h2 {
-          font-size: 30px;
-        }
       }
       @media (min-width: 781px) and (max-width: 1120px) {
         .landing-features {
-          padding-bottom: 132px;
+          padding: 132px 20px;
         }
         .landing-features-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
       }
       @media (max-width: 480px) {
+        .hero {
+          min-height: 600px;
+        }
         h1 {
           font-size: 24px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .section-blank-image {
+          opacity: 1;
+          transform: none;
+          transition: none;
+        }
+        .lpt-page {
+          animation: none !important;
         }
       }
     </style>
@@ -401,27 +748,84 @@
           <a class="logo" href="/" aria-label="FreehandNX Home">
             <img src="/Logo/FreehandNX-White.svg" alt="FreehandNX" />
           </a>
-          <a class="nav-cta" href="/editor">Try for Free</a>
+          <a class="nav-cta" href="/signup">Try It Now</a>
         </div>
       </header>
       <main class="hero">
         <div class="hero-inner">
           <div class="hero-copy">
-            <h1>Visually Create Unique Designs for Codex-AntiGravity and many more Vibe Coding Tools</h1>
-            <a class="hero-cta" href="/editor">Try for Free</a>
+            <h1>Design posters, photobooks, magazines, and more — with complete layout control.</h1>
+            <h2>A modern design tool inspired by the spirit of Freehand.</h2>
+            <a class="hero-cta" href="/signup">Try It Now</a>
           </div>
         </div>
       </main>
       <section class="section-blank">
         <div class="section-blank-inner">
-          <img src="assets/Screenshots/LP-App_Image.png" alt="FreehandNX app preview" />
+          <h2 class="section-blank-title">Built for Everyone. Simple to Use.</h2>
+          <img class="section-blank-image" src="assets/Screenshots/LP-App03.png" alt="FreehandNX app preview" />
+          <div class="section-blank-body">
+            <p>FreehandNX takes inspiration from a time when design tools felt direct and intuitive.</p>
+            <p>
+              With a clean workspace and thoughtful controls, it brings that same sense of clarity to a modern design
+              environment—simple to use, yet powerful when you need it.
+            </p>
+          </div>
+        </div>
+      </section>
+      <section class="landing-ai" aria-label="FreehandNX AI">
+        <div class="landing-ai-inner">
+          <h2 class="landing-ai-title">AI Built-In</h2>
+          <div class="landing-ai-shell">
+            <article class="landing-ai-feature">
+              <h3>Image Generation</h3>
+              <p>
+                Generate high-quality raster visuals from text prompts directly inside FreehandNX, then place and refine them on canvas as editable design assets.
+              </p>
+            </article>
+            <article class="landing-ai-feature">
+              <h3>Image Edit</h3>
+              <p>
+                Select any image on canvas and apply prompt-based edits to transform the visual while keeping your layout flow fast, clean, and fully in context.
+              </p>
+            </article>
+            <article class="landing-ai-feature">
+              <h3>Vector Art</h3>
+              <p>
+                Generate clean vector-style artwork from prompts for logos, icons, and graphic elements, then place and scale them seamlessly inside your publication layouts.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+      <section class="landing-vibe" aria-label="Vibe Coders">
+        <div class="landing-vibe-inner">
+          <h2 class="landing-vibe-title">Vibe Coders</h2>
+          <p class="landing-vibe-copy">
+            Export HTML from FreehandNX and feed it into AntiGravity, Codex, or Claude Code to remix layouts and generate unique design directions fast.
+          </p>
+        </div>
+      </section>
+      <section class="landing-page-turn" aria-label="Page Turn Preview">
+        <div class="landing-page-turn-inner">
+          <div class="landing-page-turn-header">
+            <h2 class="landing-page-turn-title">Canvas Preview</h2>
+          </div>
+          <div class="landing-page-turn-shell">
+            <div class="lpt-book" id="lptBook">
+              <div class="lpt-underlay" id="lptUnderlay"></div>
+              <div class="lpt-page" id="lptPage"></div>
+            </div>
+            <div class="lpt-controls">
+              <button class="lpt-control-btn" id="lptPrevBtn" type="button" aria-label="Previous page">‹</button>
+              <span class="lpt-page-index" id="lptPageIndex">1 / 7</span>
+              <button class="lpt-control-btn" id="lptNextBtn" type="button" aria-label="Next page">›</button>
+            </div>
+          </div>
         </div>
       </section>
       <section class="landing-features" aria-label="FreehandNX features">
         <div class="landing-features-inner">
-          <div class="landing-features-copy">
-            <h1>In the Box</h1>
-          </div>
           <div class="landing-features-grid">
             <article class="landing-feature-card">
               <h3>Multi-Page Canvas</h3>
@@ -456,22 +860,27 @@
               <p>Create, save, reopen, and organize cloud-backed project sessions so each publication stays cleanly separated and easy to manage.</p>
             </article>
             <article class="landing-feature-card">
-              <h3>Export and Share</h3>
-              <p>Export to multiple outputs, generate share links, and publish responsive previews for desktop, tablet, and mobile viewing.</p>
+              <h3>Export</h3>
+              <p>Export your work in multiple formats, including HTML, PDF, and image outputs for print, sharing, and digital publishing workflows.</p>
             </article>
             <article class="landing-feature-card">
               <h3>Flip Page Preview</h3>
               <p>Review layouts with a realistic page-turn preview to validate pacing, visual flow, and storytelling before final export.</p>
             </article>
             <article class="landing-feature-card">
-              <h3>Order Workflow</h3>
-              <p>Order action is already integrated in the topbar and can be connected to your preferred print or fulfillment service in the next phase.</p>
+              <div class="landing-feature-title-row">
+                <h3>Order Publications</h3>
+                <span class="landing-feature-badge">Coming Soon</span>
+              </div>
+              <p>Order finished publications directly from FreehandNX, including photobooks, magazines, posters, and other print-ready formats.</p>
             </article>
           </div>
-          <div class="landing-features-footer">
-            <h2>Simple. No Bloat. No Downloads.</h2>
-            <p>FreehandNX gives creators exactly the tools they need to ship professional layouts, without unnecessary distractions.</p>
-          </div>
+        </div>
+      </section>
+      <section class="landing-legacy" aria-label="FreehandNX legacy section">
+        <div class="landing-legacy-inner">
+          <h2 class="landing-legacy-title">FreehandNX - a nod to legacy Freehand.</h2>
+          <a class="landing-legacy-cta" href="/signup">Start Designing</a>
         </div>
       </section>
       <footer class="landing-footer" aria-label="FreehandNX footer">
@@ -510,6 +919,85 @@
       (() => {
         const footerYear = document.getElementById("footerYear");
         if (footerYear) footerYear.textContent = String(new Date().getFullYear());
+      })();
+
+      (() => {
+        const image = document.querySelector(".section-blank-image");
+        if (!image) return;
+        if (!("IntersectionObserver" in window)) {
+          image.classList.add("is-visible");
+          return;
+        }
+        const observer = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              image.classList.toggle("is-visible", entry.isIntersecting);
+            });
+          },
+          {
+            threshold: 0.2,
+          }
+        );
+        observer.observe(image);
+      })();
+
+      (() => {
+        const page = document.getElementById("lptPage");
+        const underlay = document.getElementById("lptUnderlay");
+        const prevBtn = document.getElementById("lptPrevBtn");
+        const nextBtn = document.getElementById("lptNextBtn");
+        const pageIndex = document.getElementById("lptPageIndex");
+        if (!page || !underlay || !prevBtn || !nextBtn || !pageIndex) return;
+
+        const pages = [
+          { src: "/PageTurnImages/AF Dancer-1.TIF@0.5x.jpg" },
+          { src: "/PageTurnImages/AF Dancer-2.TIF@0.5x.jpg" },
+          { src: "/PageTurnImages/AF Dancer-3.TIF@0.5x.jpg" },
+          { src: "/PageTurnImages/Curves-1.TIF@0.5x.jpg" },
+          { src: "/PageTurnImages/Curves-2.TIF@0.5x.jpg" },
+          { src: "/PageTurnImages/Curves-3.TIF@0.5x.jpg" },
+          { src: "/PageTurnImages/Curves-5.TIF@0.5x.jpg" },
+        ];
+
+        let currentIndex = 0;
+        let isAnimating = false;
+
+        const renderCard = (target, payload) => {
+          target.style.background = "#1a1a1a";
+          const imageSrc = encodeURI(payload.src);
+          target.innerHTML = `
+            <img class="lpt-page-image" src="${imageSrc}" alt="Page turn preview image" loading="lazy" />
+          `;
+        };
+
+        const refreshMeta = () => {
+          pageIndex.textContent = `${currentIndex + 1} / ${pages.length}`;
+        };
+
+        const goTo = (direction) => {
+          if (isAnimating) return;
+          isAnimating = true;
+          const nextIndex = (currentIndex + direction + pages.length) % pages.length;
+          renderCard(underlay, pages[nextIndex]);
+          page.classList.remove("is-turning-next", "is-turning-prev");
+          void page.offsetWidth;
+          page.classList.add(direction > 0 ? "is-turning-next" : "is-turning-prev");
+
+          window.setTimeout(() => {
+            currentIndex = nextIndex;
+            renderCard(page, pages[currentIndex]);
+            page.classList.remove("is-turning-next", "is-turning-prev");
+            refreshMeta();
+            isAnimating = false;
+          }, 640);
+        };
+
+        prevBtn.addEventListener("click", () => goTo(-1));
+        nextBtn.addEventListener("click", () => goTo(1));
+
+        renderCard(page, pages[currentIndex]);
+        renderCard(underlay, pages[(currentIndex + 1) % pages.length]);
+        refreshMeta();
       })();
     </script>
   </body>

@@ -3,6 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="application-name" content="FreehandNX" />
+    <meta name="description" content="Design posters, photobooks, and magazines with complete layout control. FreehandNX is a modern design tool inspired by the spirit of Freehand." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="FreehandNX" />
+    <meta property="og:title" content="FreehandNX – Modern Layout Design Tool for Posters & Magazines" />
+    <meta property="og:description" content="Design posters, photobooks, and magazines with complete layout control. FreehandNX is a modern design tool inspired by the spirit of Freehand." />
+    <meta property="og:image" content="https://freehandnx.com/assets/Share.png" />
+    <meta property="og:image:alt" content="FreehandNX share preview" />
+    <meta property="og:url" content="https://freehandnx.com/editor" />
+    <link rel="canonical" href="https://freehandnx.com/editor" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="FreehandNX – Modern Layout Design Tool for Posters & Magazines" />
+    <meta name="twitter:description" content="Design posters, photobooks, and magazines with complete layout control. FreehandNX is a modern design tool inspired by the spirit of Freehand." />
+    <meta name="twitter:image" content="https://freehandnx.com/assets/Share.png" />
     <title>FreehandNX</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -117,6 +131,9 @@
           </button>
           <button id="toolAiImageBtn" type="button" class="tool-btn" aria-label="AI Image" title="AI Image">
             <i data-lucide="wand-sparkles"></i>
+          </button>
+          <button id="toolVectorImageBtn" type="button" class="tool-btn" aria-label="Vector Art" title="Vector Art">
+            <i data-lucide="pen-tool"></i>
           </button>
           <button id="toolLibraryBtn" type="button" class="tool-btn" aria-label="Library" title="Library">
             <i data-lucide="library"></i>
@@ -724,9 +741,10 @@
     <div id="creditsModal" class="bf-modal hidden" role="dialog" aria-modal="true" aria-labelledby="creditsModalTitle">
       <div class="bf-modal-card">
         <h3 id="creditsModalTitle">Buy Credits</h3>
-        <p class="bf-modal-subtitle">Credit checkout will be wired next. Your balance controls AI actions and export usage.</p>
+        <p class="bf-modal-subtitle">Add 200 credits for $20. AI image generation, edits, and vector art use 10 credits per action.</p>
         <div class="bf-credits-modal-balance" id="creditsModalBalance">Current balance: 0 credits</div>
         <div class="bf-modal-actions">
+          <button id="creditsModalCheckoutBtn" type="button">Buy 200 Credits</button>
           <button id="creditsModalCloseBtn" type="button" class="bf-icon-only-btn" title="Close" aria-label="Close">
             <i data-lucide="x"></i>
           </button>
@@ -743,8 +761,9 @@
         <div class="settings-menu-content">
           <img src="/Logo/FreehandNX-White.svg" alt="FreehandNX" class="settings-menu-logo" />
           <nav class="settings-menu-links" aria-label="Settings">
+            <button id="settingsSubscribeBtn" type="button" class="settings-menu-link">Subscribe</button>
             <button id="settingsManageBtn" type="button" class="settings-menu-link">Manage</button>
-            <button id="settingsCreditsBtn" type="button" class="settings-menu-link">Credits</button>
+            <button id="settingsCreditsBtn" type="button" class="settings-menu-link">Buy Credits</button>
             <a id="settingsHelpLink" class="settings-menu-link" href="/help" target="_blank" rel="noopener noreferrer">Help</a>
           </nav>
           <p id="settingsModalStatus" class="bf-modal-subtitle"></p>
@@ -786,7 +805,7 @@
         <i data-lucide="loader-circle"></i>
       </div>
       <div class="bf-ai-compose-shell" role="group" aria-labelledby="aiImageModalTitle">
-        <h3 id="aiImageModalTitle" class="hidden">Generate Image</h3>
+        <h2 id="aiImageModalTitle" class="bf-ai-compose-title">Raster Image</h2>
         <div class="bf-ai-compose-size-row">
           <select id="aiImageSize" aria-label="Image Size">
             <option value="1:1">1:1</option>
@@ -812,6 +831,44 @@
               <i data-lucide="refresh-cw"></i>
             </button>
             <button id="aiImageGenerateBtn" type="button" class="bf-icon-only-btn bf-ai-compose-btn" title="Generate Image" aria-label="Generate Image">
+              <i data-lucide="send"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="vectorImageModal" class="bf-modal hidden" role="dialog" aria-modal="true" aria-labelledby="vectorImageModalTitle">
+      <div id="vectorImageLoadingIndicator" class="bf-ai-loading hidden" aria-live="polite" aria-label="Generating vector art">
+        <i data-lucide="loader-circle"></i>
+      </div>
+      <div class="bf-ai-compose-shell" role="group" aria-labelledby="vectorImageModalTitle">
+        <h2 id="vectorImageModalTitle" class="bf-ai-compose-title">Vector Art</h2>
+        <div class="bf-ai-compose-size-row">
+          <select id="vectorImageSize" aria-label="Vector Art Size">
+            <option value="1:1">1:1</option>
+            <option value="2:1">2:1</option>
+            <option value="1:2">1:2</option>
+            <option value="3:2">3:2</option>
+            <option value="2:3">2:3</option>
+            <option value="4:3">4:3</option>
+            <option value="3:4" selected>3:4</option>
+            <option value="5:4">5:4</option>
+            <option value="4:5">4:5</option>
+            <option value="6:10">6:10</option>
+            <option value="14:10">14:10</option>
+            <option value="10:14">10:14</option>
+            <option value="16:9">16:9</option>
+            <option value="9:16">9:16</option>
+          </select>
+        </div>
+        <div class="bf-ai-compose-input-wrap">
+          <input id="vectorImagePrompt" type="text" placeholder="Describe the vector image..." autocomplete="off" />
+          <div class="bf-ai-compose-inline-actions">
+            <button id="vectorImageRegenerateBtn" type="button" class="bf-icon-only-btn bf-ai-compose-btn" title="Regenerate" aria-label="Regenerate" disabled>
+              <i data-lucide="refresh-cw"></i>
+            </button>
+            <button id="vectorImageGenerateBtn" type="button" class="bf-icon-only-btn bf-ai-compose-btn" title="Generate Vector Art" aria-label="Generate Vector Art">
               <i data-lucide="send"></i>
             </button>
           </div>
